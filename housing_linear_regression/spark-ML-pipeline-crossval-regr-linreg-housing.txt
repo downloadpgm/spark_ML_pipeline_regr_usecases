@@ -1,0 +1,131 @@
+
+import org.apache.spark.sql.types._
+import spark.implicits._
+
+val schemaHousing = new StructType().
+add("CRIM", DoubleType).
+add("ZN", DoubleType).
+add("INDUS", DoubleType).
+add("CHAS", IntegerType).
+add("NOX", DoubleType).
+add("RM", DoubleType).
+add("AGE", DoubleType).
+add("DIS", DoubleType).
+add("RAD", IntegerType).
+add("TAX", DoubleType).
+add("PTRATIO", DoubleType).
+add("B", DoubleType).
+add("LSTAT", DoubleType).
+add("MEDV", DoubleType)
+
+val df = spark.read.format("csv").option("ignoreLeadingWhiteSpace","true").schema(schemaHousing).load("first-edition/ch07/housing.data")
+
+val dfraw = df.withColumn("label",'MEDV)
+
+val splits = dfraw.randomSplit(Array(0.7,0.3),11L)
+val trainingData = splits(0).cache()
+val testData = splits(1).cache()
+
+import org.apache.spark.ml.feature.{StringIndexer, OneHotEncoder, VectorAssembler}
+
+val va = new VectorAssembler().setOutputCol("featuresArr").setInputCols(Array("CRIM","ZN","INDUS","CHAS","NOX","RM","AGE","DIS","RAD","TAX","PTRATIO","B","LSTAT"))
+
+import org.apache.spark.ml.feature.StandardScaler
+
+val scaler = new StandardScaler()
+.setInputCol("featuresArr")
+.setOutputCol("features")
+.setWithStd(true)
+.setWithMean(true)
+
+import org.apache.spark.ml.regression.LinearRegression
+
+val lr = new LinearRegression()
+.setMaxIter(500)
+.setRegParam(0.1)
+.setElasticNetParam(0.8)
+
+import org.apache.spark.ml.Pipeline
+
+val pipeline = new Pipeline().setStages(Array(va,scaler,lr))
+
+val model = pipeline.fit(trainingData)
+
+val pred = model.transform(testData)
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+
+val evaluator = new RegressionEvaluator().
+setMetricName("rmse").
+setLabelCol("label").
+setPredictionCol("prediction")
+
+evaluator.evaluate(pred)
+res2: Double = 4.529722350039363
+
+import org.apache.spark.ml.regression.LinearRegressionModel
+val lrmodel = model.stages(2).asInstanceOf[LinearRegressionModel]
+
+println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
+LR Model coefficients:
+-0.9822386022924533
+0.7933760984408644
+-0.5760135964800212
+0.2961221037494449
+-1.7466910738593218
+2.620026608664416
+0.0
+-2.8957624381582945
+1.9595778098759336
+-1.197907255706833
+-1.8567409546983242
+0.8202164602519041
+-3.7619077082437764
+
+-------------------
+
+import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
+
+val paramGrid = new ParamGridBuilder().addGrid(lr.regParam, Array(0.1, 0.01, 0.001)).addGrid(lr.fitIntercept).addGrid(lr.maxIter, Array(100,300,500)).addGrid(lr.elasticNetParam, Array(0.8)).build()
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+
+val cv = new CrossValidator()
+.setEstimator(pipeline)
+.setEvaluator(new RegressionEvaluator)
+.setEstimatorParamMaps(paramGrid)
+.setNumFolds(3)
+
+val model = cv.fit(trainingData)
+
+import org.apache.spark.ml.PipelineModel
+val bestmodel = model.bestModel.asInstanceOf[PipelineModel]
+
+import org.apache.spark.ml.regression.LinearRegressionModel
+val lrmodel = bestmodel.stages(2).asInstanceOf[LinearRegressionModel]
+
+println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
+LR Model coefficients:
+-1.1869562068414676
+1.0895629266823617
+-0.4658298556854871
+0.320441663191931
+-2.1060892382631806
+2.5092729851274473
+0.010637890092710107
+-3.395086933082303
+3.012749995516111
+-2.0990685258517754
+-1.9268628226569398
+0.8848886382707416
+-3.772974912812158
+
+val pred = bestmodel.transform(testData)
+
+val bceval = new RegressionEvaluator().
+setMetricName("rmse").
+setLabelCol("label").
+setPredictionCol("prediction")
+
+bceval.evaluate(pred)
+res1: Double = 4.568091833882758
