@@ -1,25 +1,9 @@
 
-val df = spark.read.format("csv").option("header","true").option("inferSchema","true").load("used_cars_price_train-data.csv")
+val df = spark.read.format("csv").option("inferSchema","true").load("used_cars/used_cars_price_train-data.csv").toDF("Row","Name","Location","Year","Kilometers_Driven","Fuel_Type","Transmission","Owner_Type","Mileage","Engine","Power","Seats","New_Price","Price")
 
-df.describe().show
-+-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+
-|summary|               _c0|                Name| Location|              Year|Kilometers_Driven|Fuel_Type|Transmission|Owner_Type| Mileage| Engine|   Power|             Seats| New_Price|             Price|
-+-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+
-|  count|              6019|                6019|     6019|              6019|             6019|     6019|        6019|      6019|    6017|   5983|    5983|              5977|       824|              6019|
-|   mean|            3009.0|                null|     null|2013.3581990363848|58738.38029573019|     null|        null|      null|    null|   null|    null| 5.278735151413753|      null| 9.479468350224273|
-| stddev|1737.6799666988932|                null|     null|  3.26974211609139|91268.84320624865|     null|        null|      null|    null|   null|    null|0.8088395547482933|      null|11.187917112455484|
-|    min|                 0|Ambassador Classi...|Ahmedabad|              1998|              171|      CNG|   Automatic|     First|0.0 kmpl|1047 CC| 100 bhp|               0.0|      1 Cr|              0.44|
-|    max|              6018|Volvo XC90 2007-2...|     Pune|              2019|          6500000|   Petrol|      Manual|     Third|9.9 kmpl| 999 CC|null bhp|              10.0|99.92 Lakh|             160.0|
-+-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+
-
-import org.apache.spark.sql.types._
-
-val df1 = df.where('Engine.isNotNull && 'Power.isNotNull && 'Seats.isNotNull).drop("New_Price", "_c0").withColumn("age", (lit(2021)-'Year).cast(DoubleType)).
-where(! 'Mileage.contains("null") && ! 'Engine.contains("null") && ! 'Power.contains("null"))
-
-
-df1.printSchema
+df.printSchema
 root
+ |-- Row: integer (nullable = true)
  |-- Name: string (nullable = true)
  |-- Location: string (nullable = true)
  |-- Year: integer (nullable = true)
@@ -31,10 +15,67 @@ root
  |-- Engine: string (nullable = true)
  |-- Power: string (nullable = true)
  |-- Seats: double (nullable = true)
+ |-- New_Price: string (nullable = true)
  |-- Price: double (nullable = true)
- |-- age: double (nullable = true)
- 
-val df2 = df1.withColumn("mileage_aux", regexp_extract('Mileage,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+
+df.describe().show
++-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+
+|summary|               Row|                Name| Location|              Year|Kilometers_Driven|Fuel_Type|Transmission|Owner_Type| Mileage| Engine|   Power|             Seats| New_Price|             Price|
++-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+
+|  count|              6019|                6019|     6019|              6019|             6019|     6019|        6019|      6019|    6017|   5983|    5983|              5977|       824|              6019|
+|   mean|            3009.0|                null|     null|2013.3581990363848|58738.38029573019|     null|        null|      null|    null|   null|    null| 5.278735151413753|      null| 9.479468350224273|
+| stddev|1737.6799666988932|                null|     null|  3.26974211609139|91268.84320624865|     null|        null|      null|    null|   null|    null|0.8088395547482933|      null|11.187917112455484|
+|    min|                 0|Ambassador Classi...|Ahmedabad|              1998|              171|      CNG|   Automatic|     First|0.0 kmpl|1047 CC| 100 bhp|               0.0|      1 Cr|              0.44|
+|    max|              6018|Volvo XC90 2007-2...|     Pune|              2019|          6500000|   Petrol|      Manual|     Third|9.9 kmpl| 999 CC|null bhp|              10.0|99.92 Lakh|             160.0|
++-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+
+
+df.groupBy("Mileage").count.orderBy('count.desc).show(3)
++---------+-----+
+|  Mileage|count|
++---------+-----+
+|17.0 kmpl|  172|
+|18.9 kmpl|  172|
+|18.6 kmpl|  119|
++---------+-----+
+only showing top 3 rows
+
+df.groupBy("Engine").count.orderBy('count.desc).show(3)
++-------+-----+
+| Engine|count|
++-------+-----+
+|1197 CC|  606|
+|1248 CC|  512|
+|1498 CC|  304|
++-------+-----+
+only showing top 3 rows
+
+df.groupBy("Power").count.orderBy('count.desc).show(3)
++--------+-----+
+|   Power|count|
++--------+-----+
+|  74 bhp|  235|
+|98.6 bhp|  131|
+|73.9 bhp|  125|
++--------+-----+
+only showing top 3 rows
+
+df.groupBy("Seats").count.orderBy('count.desc).show(3)
++-----+-----+
+|Seats|count|
++-----+-----+
+|  5.0| 5014|
+|  7.0|  674|
+|  8.0|  134|
++-----+-----+
+only showing top 3 rows
+
+
+val df1 = df.na.fill(Map("Mileage" -> "18.9 kmpl", "Engine" -> "1197 CC", "Power" -> "74 bhp", "Seats" -> 5.0)).na.replace("Power", Map("null bhp" -> "74 bhp"))
+
+import org.apache.spark.sql.types._
+
+val df2 = df1.withColumn("age", (lit(2021)-'Year).cast(DoubleType)).
+withColumn("mileage_aux", regexp_extract('Mileage,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
 withColumn("engine_aux", regexp_extract('Engine,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
 withColumn("power_aux", regexp_extract('Power,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
 withColumn("label", 'Price)
@@ -59,13 +100,24 @@ root
  |-- power_aux: double (nullable = true)
  |-- label: double (nullable = true)
 
+df2.describe().show
++-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+------------------+------------------+------------------+------------------+------------------+
+|summary|               Row|                Name| Location|              Year|Kilometers_Driven|Fuel_Type|Transmission|Owner_Type| Mileage| Engine|   Power|             Seats| New_Price|             Price|               age|       mileage_aux|        engine_aux|         power_aux|             label|
++-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+------------------+------------------+------------------+------------------+------------------+
+|  count|              6019|                6019|     6019|              6019|             6019|     6019|        6019|      6019|    6019|   6019|    6019|              6019|       824|              6019|              6019|              6019|              6019|              5912|              6019|
+|   mean|            3009.0|                null|     null|2013.3581990363848|58738.38029573019|     null|        null|      null|    null|   null|    null|5.2767901644791495|      null| 9.479468350224273| 7.641800963615219|18.135215152018656|1618.7388270476824|113.01402571041861| 9.479468350224273|
+| stddev|1737.6799666988932|                null|     null|  3.26974211609139|91268.84320624865|     null|        null|      null|    null|   null|    null|0.8063460892297473|      null|11.187917112455484|3.2697421160913938| 4.581548857057788| 600.4458584135865| 53.79740345214511|11.187917112455484|
+|    min|                 0|Ambassador Classi...|Ahmedabad|              1998|              171|      CNG|   Automatic|     First|0.0 kmpl|1047 CC| 100 bhp|               0.0|      1 Cr|              0.44|               2.0|               0.0|              72.0|              34.2|              0.44|
+|    max|              6018|Volvo XC90 2007-2...|     Pune|              2019|          6500000|   Petrol|      Manual|     Third|9.9 kmpl| 999 CC|null bhp|              10.0|99.92 Lakh|             160.0|              23.0|             33.54|            5998.0|             560.0|             160.0|
++-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+------------------+------------------+------------------+------------------+------------------+
+
 
 import org.apache.spark.ml.feature.{StringIndexer, OneHotEncoder, VectorAssembler}
 
-val dfInd1 = new StringIndexer().setInputCol("Location").setOutputCol("LocationCat")
-val dfInd2 = new StringIndexer().setInputCol("Fuel_Type").setOutputCol("Fuel_TypeCat")
-val dfInd3 = new StringIndexer().setInputCol("Transmission").setOutputCol("TransmissionCat")
-val dfInd4 = new StringIndexer().setInputCol("Owner_Type").setOutputCol("Owner_TypeCat")
+val dfInd1 = new StringIndexer().setInputCol("Location").setOutputCol("LocationCat").setHandleInvalid("skip")
+val dfInd2 = new StringIndexer().setInputCol("Fuel_Type").setOutputCol("Fuel_TypeCat").setHandleInvalid("skip")
+val dfInd3 = new StringIndexer().setInputCol("Transmission").setOutputCol("TransmissionCat").setHandleInvalid("skip")
+val dfInd4 = new StringIndexer().setInputCol("Owner_Type").setOutputCol("Owner_TypeCat").setHandleInvalid("skip")
 
 val dfOne1 = new OneHotEncoder().setInputCol("LocationCat").setOutputCol("LocationVect")
 val dfOne2 = new OneHotEncoder().setInputCol("Fuel_TypeCat").setOutputCol("Fuel_TypeVect")
@@ -108,13 +160,13 @@ setLabelCol("label").
 setPredictionCol("prediction")
 
 evaluator.evaluate(pred)
-res34: Double = 6.566620235847463
+res34: Double = 7.953945299022693
 
 ------------------------------
 
 import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
 
-val paramGrid = new ParamGridBuilder().addGrid(lr.regParam, Array(0.1, 0.01, 0.001)).addGrid(lr.fitIntercept, Array(true)).addGrid(lr.maxIter, Array(100,300,500)).build()
+val paramGrid = new ParamGridBuilder().addGrid(lr.regParam, Array(0.1, 0.01, 0.001)).addGrid(lr.fitIntercept, Array(true)).addGrid(lr.maxIter, Array(100,200,300)).build()
 
 import org.apache.spark.ml.evaluation.RegressionEvaluator
 
@@ -142,4 +194,4 @@ setLabelCol("label").
 setPredictionCol("prediction")
 
 evaluator.evaluate(pred)
-res37: Double = 6.566620235847463
+res37: Double = 8.276317864995177

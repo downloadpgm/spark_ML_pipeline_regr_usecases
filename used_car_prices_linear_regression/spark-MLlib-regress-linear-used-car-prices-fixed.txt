@@ -1,0 +1,232 @@
+---- Feature extraction & Data Munging --------------
+
+val rdd = sc.textFile("used_cars/used_cars_price_train-data.csv").map(x => x.split(","))
+
+rdd.take(2)
+res29: Array[Array[String]] = Array(Array(0, Maruti Wagon R LXI CNG, Mumbai, 2010, 72000, CNG, Manual, First, 26.6 km/kg, 998 CC, 58.16 bhp, 5.0, "", 1.75), Array(1, Hyundai Creta 1.6 CRDi SX Option, Pune, 2015, 41000, Diesel, Manual, First, 19.67 kmpl, 1582 CC, 126.2 bhp, 5.0, "", 12.5))
+
+scala> rdd.count
+res44: Long = 6019
+
+scala> rdd.filter(x => x(1) == "").count
+res30: Long = 0
+
+scala> rdd.filter(x => x(2) == "").count
+res31: Long = 0
+
+scala> rdd.filter(x => x(3) == "").count
+res32: Long = 0
+
+scala> rdd.filter(x => x(4) == "").count
+res33: Long = 0
+
+scala> rdd.filter(x => x(5) == "").count
+res34: Long = 0
+
+scala> rdd.filter(x => x(6) == "").count
+res35: Long = 0
+
+scala> rdd.filter(x => x(7) == "").count
+res36: Long = 0
+
+scala> rdd.filter(x => x(8) == "").count
+res37: Long = 2
+
+scala> rdd.filter(x => x(9) == "").count
+res38: Long = 36
+
+scala> rdd.filter(x => x(10) == "").count
+res39: Long = 36
+
+scala> rdd.filter(x => x(11) == "").count
+res40: Long = 42
+
+scala> rdd.filter(x => x(12) == "").count   // removed from analysis
+res41: Long = 5195
+
+scala> rdd.filter(x => x(13) == "").count
+res42: Long = 0
+
+val orderingDesc = Ordering.by[(String, Int), Int](_._2)
+
+rdd.map( x => (x(8),1) ).reduceByKey(_+_).top(3)(orderingDesc).mkString("\n")
+res47: String =
+(18.9 kmpl,172)
+(17.0 kmpl,172)
+(18.6 kmpl,119)
+
+rdd.map( x => (x(9),1) ).reduceByKey(_+_).top(3)(orderingDesc).mkString("\n")
+res48: String =
+(1197 CC,606)
+(1248 CC,512)
+(1498 CC,304)
+
+rdd.map( x => (x(10),1) ).reduceByKey(_+_).top(3)(orderingDesc).mkString("\n")
+res49: String =
+(74 bhp,235)
+(98.6 bhp,131)
+(73.9 bhp,125)
+
+rdd.map( x => (x(11),1) ).reduceByKey(_+_).top(3)(orderingDesc).mkString("\n")
+res50: String =
+(5.0,5014)
+(7.0,674)
+(8.0,134)
+
+
+// for numerical columns, removing embebbed chars and converting to doubles
+val rdd2 = rdd.map( x => {
+   val age = 2021 - x(3).toDouble
+   val km_driven = x(4).toDouble/1000
+   //
+   val mileage_aux = ("""[0-9]+\.[0-9]+""".r findAllIn x(8)).toList
+   val mileage = if (mileage_aux.isEmpty) 18.9 else mileage_aux.head.toDouble
+   //
+   val engine_aux = ("""[0-9]+\.[0-9]+""".r findAllIn x(9)).toList
+   val engine = if (engine_aux.isEmpty) 1197.0 else engine_aux.head.toDouble
+   //
+   val power_aux = ("""[0-9]+\.[0-9]+""".r findAllIn x(10)).toList
+   val power = if (power_aux.isEmpty) 74.0 else power_aux.head.toDouble
+   //
+   val seats = if (x(11).isEmpty) 5.0 else x(11).toDouble
+   val price = x(13).toDouble
+   //
+   Array(age,km_driven,mileage,engine,power,seats,price)
+ })
+
+// model description is only maker + model
+val rdd3 = rdd.map( x => {
+  val model_car = x(1).substring(0,x(1).indexOf(' ',x(1).indexOf(' ',1)+1))
+  Array(model_car,x(2),x(5),x(6),x(7))
+})
+
+---- Conversion to 1-to-k binary encoding vectors 
+
+def oneHotEncColumns(rddx: org.apache.spark.rdd.RDD[Array[String]], idx: Int):org.apache.spark.rdd.RDD[Array[Double]] = {
+  val categories = rddx.map(r => r(idx)).distinct.zipWithIndex.collectAsMap
+  val numCategories = categories.size
+  val vetcateg = rddx.map(r => {
+    val categoryIdx = categories(r(idx)).toInt
+	val categoryFeatures = if (numCategories > 2) Array.ofDim[Double](numCategories) else Array.ofDim[Double](1)
+	if (numCategories > 2) categoryFeatures(categoryIdx) = 1.0 else categoryFeatures(0) = categoryIdx
+    categoryFeatures
+	})
+  vetcateg
+}
+
+def mergeArray(rddx: org.apache.spark.rdd.RDD[Array[String]], idx: Int*):org.apache.spark.rdd.RDD[Array[Double]] = {
+  var i = 0
+  var arr1 = oneHotEncColumns(rddx,idx(i))
+  for (j <- 1 until idx.size) {
+    var arr2 = oneHotEncColumns(rddx,idx(j))
+    var flt1 = arr1.zip(arr2).map(x => (x._1.toList ++ x._2.toList).toArray)
+    arr1 = flt1
+  }
+  arr1
+}
+
+val concat = mergeArray(rdd3,0,1,2,3,4)
+
+concat.first.size
+res58: Int = 237
+
+// merging the numerical columns with 1-of-k vectors produced
+val vect = concat.zip(rdd2).map(x => (x._1.toList ++ x._2.toList).toArray)
+
+vect.first.size
+res59: Int = 244
+
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.regression.LabeledPoint
+
+val data = vect.map(x => {
+  val arr_size = x.size - 1 
+  val l = x(arr_size)
+  val f = x.slice(0,arr_size)
+  LabeledPoint(l,Vectors.dense(f))
+})
+
+val sets = data.randomSplit(Array(0.7,0.3), 11L)
+val trainSet = sets(0)
+val testSet = sets(1)
+
+trainSet.cache
+
+---- MLlib Linear regression --------------
+
+import org.apache.spark.rdd.RDD
+import org.apache.spark.mllib.regression.LinearRegressionWithSGD
+import org.apache.spark.mllib.evaluation.RegressionMetrics
+
+def iterateLRwSGD(iterNums:Array[Int], stepSizes:Array[Double], train:RDD[LabeledPoint], test:RDD[LabeledPoint]) = {
+  println("iter, step -> RMSE, MSE") 
+  for(numIter <- iterNums; step <- stepSizes) {
+    val model = new LinearRegressionWithSGD
+	model.setIntercept(true)
+	model.optimizer.setNumIterations(numIter).setStepSize(step)
+	val lr = model.run(train)
+    val validPredicts = test.map(x => (lr.predict(x.features),x.label))
+    val metrics = new RegressionMetrics(validPredicts)
+    println("%d, %7.5f -> %.4f, %.4f".format(numIter, step, metrics.rootMeanSquaredError, metrics.meanSquaredError))
+  }
+}
+
+iterateLRwSGD(Array(100,200,300),Array(1, 0.1, 0.01, 0.001, 0.0001, 0.0005, 0.00001), trainSet, testSet)
+iter, step -> RMSE, MSE
+100, 1.00000 -> NaN, NaN
+100, 0.10000 -> NaN, NaN
+100, 0.01000 -> NaN, NaN
+100, 0.00100 -> Infinity, Infinity
+100, 0.00010 -> 7549194964216942000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, 56990344607758440000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
+100, 0.00050 -> Infinity, Infinity
+100, 0.00001 -> 788836430.5842, 622262914216865150.0000
+200, 1.00000 -> NaN, NaN
+200, 0.10000 -> NaN, NaN
+200, 0.01000 -> NaN, NaN
+200, 0.00100 -> NaN, NaN
+200, 0.00010 -> Infinity, Infinity
+200, 0.00050 -> NaN, NaN
+200, 0.00001 -> 11.7619, 138.3413
+300, 1.00000 -> NaN, NaN
+300, 0.10000 -> NaN, NaN
+300, 0.01000 -> NaN, NaN
+300, 0.00100 -> NaN, NaN
+300, 0.00010 -> NaN, NaN
+300, 0.00050 -> NaN, NaN
+300, 0.00001 -> 11.7619, 138.3413
+
+----- Decide to scale features because variabiliaty increases even reducing step size of model 
+
+import org.apache.spark.mllib.feature.StandardScaler
+val scaler = new StandardScaler(true, true).fit(trainSet.map(x => x.features))
+ 
+val trainScaled = trainSet.map(x => LabeledPoint(x.label,scaler.transform(x.features)))
+val testScaled = testSet.map(x => LabeledPoint(x.label, scaler.transform(x.features)))
+
+trainScaled.cache
+
+---- MLlib Linear regression --------------
+
+iterateLRwSGD(Array(100,200,300),Array(1, 0.1, 0.01, 0.001, 0.0001, 0.0005, 0.00001), trainScaled, testScaled)
+iter, step -> RMSE, MSE
+100, 1.00000 -> 7.4060, 54.8484
+100, 0.10000 -> 8.2574, 68.1852
+100, 0.01000 -> 11.6314, 135.2900
+100, 0.00100 -> 13.8052, 190.5842
+100, 0.00010 -> 14.1306, 199.6748
+100, 0.00050 -> 14.0011, 196.0312
+100, 0.00001 -> 14.1354, 199.8104
+200, 1.00000 -> 7.4060, 54.8484
+200, 0.10000 -> 8.1784, 66.8870
+200, 0.01000 -> 10.9453, 119.7992
+200, 0.00100 -> 13.6982, 187.6413
+200, 0.00010 -> 14.1306, 199.6748
+200, 0.00050 -> 14.0011, 196.0312
+200, 0.00001 -> 14.1354, 199.8104
+300, 1.00000 -> 7.4060, 54.8484
+300, 0.10000 -> 8.1784, 66.8870
+300, 0.01000 -> 10.5325, 110.9343
+300, 0.00100 -> 13.6982, 187.6413
+300, 0.00010 -> 14.1306, 199.6748
+300, 0.00050 -> 14.0011, 196.0312
+300, 0.00001 -> 14.1354, 199.8104
