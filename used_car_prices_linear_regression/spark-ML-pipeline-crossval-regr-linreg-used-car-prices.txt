@@ -1,0 +1,145 @@
+
+val df = spark.read.format("csv").option("header","true").option("inferSchema","true").load("used_cars_price_train-data.csv")
+
+df.describe().show
++-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+
+|summary|               _c0|                Name| Location|              Year|Kilometers_Driven|Fuel_Type|Transmission|Owner_Type| Mileage| Engine|   Power|             Seats| New_Price|             Price|
++-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+
+|  count|              6019|                6019|     6019|              6019|             6019|     6019|        6019|      6019|    6017|   5983|    5983|              5977|       824|              6019|
+|   mean|            3009.0|                null|     null|2013.3581990363848|58738.38029573019|     null|        null|      null|    null|   null|    null| 5.278735151413753|      null| 9.479468350224273|
+| stddev|1737.6799666988932|                null|     null|  3.26974211609139|91268.84320624865|     null|        null|      null|    null|   null|    null|0.8088395547482933|      null|11.187917112455484|
+|    min|                 0|Ambassador Classi...|Ahmedabad|              1998|              171|      CNG|   Automatic|     First|0.0 kmpl|1047 CC| 100 bhp|               0.0|      1 Cr|              0.44|
+|    max|              6018|Volvo XC90 2007-2...|     Pune|              2019|          6500000|   Petrol|      Manual|     Third|9.9 kmpl| 999 CC|null bhp|              10.0|99.92 Lakh|             160.0|
++-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+
+
+import org.apache.spark.sql.types._
+
+val df1 = df.where('Engine.isNotNull && 'Power.isNotNull && 'Seats.isNotNull).drop("New_Price", "_c0").withColumn("age", (lit(2021)-'Year).cast(DoubleType)).
+where(! 'Mileage.contains("null") && ! 'Engine.contains("null") && ! 'Power.contains("null"))
+
+
+df1.printSchema
+root
+ |-- Name: string (nullable = true)
+ |-- Location: string (nullable = true)
+ |-- Year: integer (nullable = true)
+ |-- Kilometers_Driven: integer (nullable = true)
+ |-- Fuel_Type: string (nullable = true)
+ |-- Transmission: string (nullable = true)
+ |-- Owner_Type: string (nullable = true)
+ |-- Mileage: string (nullable = true)
+ |-- Engine: string (nullable = true)
+ |-- Power: string (nullable = true)
+ |-- Seats: double (nullable = true)
+ |-- Price: double (nullable = true)
+ |-- age: double (nullable = true)
+ 
+val df2 = df1.withColumn("mileage_aux", regexp_extract('Mileage,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+withColumn("engine_aux", regexp_extract('Engine,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+withColumn("power_aux", regexp_extract('Power,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+withColumn("label", 'Price)
+
+df2.printSchema
+root
+ |-- Name: string (nullable = true)
+ |-- Location: string (nullable = true)
+ |-- Year: integer (nullable = true)
+ |-- Kilometers_Driven: integer (nullable = true)
+ |-- Fuel_Type: string (nullable = true)
+ |-- Transmission: string (nullable = true)
+ |-- Owner_Type: string (nullable = true)
+ |-- Mileage: string (nullable = true)
+ |-- Engine: string (nullable = true)
+ |-- Power: string (nullable = true)
+ |-- Seats: double (nullable = true)
+ |-- Price: double (nullable = true)
+ |-- age: double (nullable = true)
+ |-- mileage_aux: double (nullable = true)
+ |-- engine_aux: double (nullable = true)
+ |-- power_aux: double (nullable = true)
+ |-- label: double (nullable = true)
+
+
+import org.apache.spark.ml.feature.{StringIndexer, OneHotEncoder, VectorAssembler}
+
+val dfInd1 = new StringIndexer().setInputCol("Location").setOutputCol("LocationCat")
+val dfInd2 = new StringIndexer().setInputCol("Fuel_Type").setOutputCol("Fuel_TypeCat")
+val dfInd3 = new StringIndexer().setInputCol("Transmission").setOutputCol("TransmissionCat")
+val dfInd4 = new StringIndexer().setInputCol("Owner_Type").setOutputCol("Owner_TypeCat")
+
+val dfOne1 = new OneHotEncoder().setInputCol("LocationCat").setOutputCol("LocationVect")
+val dfOne2 = new OneHotEncoder().setInputCol("Fuel_TypeCat").setOutputCol("Fuel_TypeVect")
+val dfOne3 = new OneHotEncoder().setInputCol("TransmissionCat").setOutputCol("TransmissionVect")
+val dfOne4 = new OneHotEncoder().setInputCol("Owner_TypeCat").setOutputCol("Owner_TypeVect")
+
+val va = new VectorAssembler().setOutputCol("features").setInputCols(Array("LocationVect","Kilometers_Driven","Fuel_TypeVect","TransmissionVect","Owner_TypeVect","Seats","age","mileage_aux","engine_aux","power_aux"))
+
+import org.apache.spark.ml.feature.StandardScaler
+
+val scaler = new StandardScaler().
+setInputCol("features").
+setOutputCol("scaledFeatures").
+setWithStd(true).
+setWithMean(true)
+
+import org.apache.spark.ml.regression.LinearRegression
+
+val lr = new LinearRegression().
+setMaxIter(500).
+setRegParam(0.1).
+setElasticNetParam(0.8).
+setFitIntercept(true).
+setFeaturesCol("scaledFeatures")
+
+import org.apache.spark.ml.Pipeline
+val pipeline = new Pipeline().setStages(Array(dfInd1,dfInd2,dfInd3,dfInd4,dfOne1,dfOne2,dfOne3,dfOne4,va,scaler,lr))
+
+val Array(trainingData, testData) = df2.randomSplit(Array(0.7,0.3),11L)
+
+val model = pipeline.fit(trainingData)
+
+val pred = model.transform(testData)
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+
+val evaluator = new RegressionEvaluator().
+setMetricName("rmse").
+setLabelCol("label").
+setPredictionCol("prediction")
+
+evaluator.evaluate(pred)
+res34: Double = 6.566620235847463
+
+------------------------------
+
+import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
+
+val paramGrid = new ParamGridBuilder().addGrid(lr.regParam, Array(0.1, 0.01, 0.001)).addGrid(lr.fitIntercept, Array(true)).addGrid(lr.maxIter, Array(100,300,500)).build()
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+
+val cv = new CrossValidator().
+setEstimator(pipeline).
+setEvaluator(new RegressionEvaluator).
+setEstimatorParamMaps(paramGrid).
+setNumFolds(3)
+
+val model = cv.fit(trainingData)
+
+import org.apache.spark.ml.PipelineModel
+val bestmodel = model.bestModel.asInstanceOf[PipelineModel]
+
+import org.apache.spark.ml.regression.LinearRegressionModel
+val lrmodel = bestmodel.stages(10).asInstanceOf[LinearRegressionModel]
+
+val pred = bestmodel.transform(testData)
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+
+val evaluator = new RegressionEvaluator().
+setMetricName("rmse").
+setLabelCol("label").
+setPredictionCol("prediction")
+
+evaluator.evaluate(pred)
+res37: Double = 6.566620235847463
