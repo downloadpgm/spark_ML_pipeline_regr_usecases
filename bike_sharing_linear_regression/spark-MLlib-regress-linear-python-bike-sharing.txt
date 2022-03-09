@@ -1,0 +1,33 @@
+export PYSPARK_DRIVER_PYTHON=jupyter
+export PYSPARK_DRIVER_PYTHON_OPTS="notebook"
+pyspark
+
+----------------
+
+path = "bike/hour_nohead.csv"
+raw_data = sc.textFile(path)
+num_data = raw_data.count()
+records = raw_data.map(lambda x: x.split(","))
+
+first = records.first()
+print first
+print num_data
+
+
+from imageio import imread
+from matplotlib.pyplot import imshow
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+targets = records.map(lambda r: float(r[-1])).collect()
+plt.hist(targets, bins=40, color='lightblue', normed=True)
+fig = plt.gcf()
+fig.set_size_inches(16, 10) 
+
+----------------------- r[2] = season (1:springer, 2:summer, 3:fall, 4:winter)
+
+targets = records.filter(lambda r: float(r[2]) == 4).map(lambda r: float(r[-1])).collect()
+plt.hist(targets, bins=40, color='lightblue', normed=True)
+fig = plt.gcf()
+fig.set_size_inches(16, 10) 

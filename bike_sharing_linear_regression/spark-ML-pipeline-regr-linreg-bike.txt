@@ -1,0 +1,97 @@
+
+val df = spark.read.format("csv").option("header","true").option("inferSchema","true").load("bike/hour.csv")
+
+df.printSchema
+root
+ |-- instant: integer (nullable = true)
+ |-- dteday: timestamp (nullable = true)
+ |-- season: integer (nullable = true)
+ |-- yr: integer (nullable = true)
+ |-- mnth: integer (nullable = true)
+ |-- hr: integer (nullable = true)
+ |-- holiday: integer (nullable = true)
+ |-- weekday: integer (nullable = true)
+ |-- workingday: integer (nullable = true)
+ |-- weathersit: integer (nullable = true)
+ |-- temp: double (nullable = true)
+ |-- atemp: double (nullable = true)
+ |-- hum: double (nullable = true)
+ |-- windspeed: double (nullable = true)
+ |-- casual: integer (nullable = true)
+ |-- registered: integer (nullable = true)
+ |-- cnt: integer (nullable = true)
+ 
+import org.apache.spark.sql.types._
+
+val df1 = df.drop("instant","casual","registered").
+withColumn("season",'season.cast(DoubleType)).
+withColumn("mnth",'mnth.cast(DoubleType)).
+withColumn("hr",'hr.cast(DoubleType)).
+withColumn("holiday",'holiday.cast(DoubleType)).
+withColumn("weekday",'weekday.cast(DoubleType)).
+withColumn("workingday",'workingday.cast(DoubleType)).
+withColumn("weathersit",'weathersit.cast(DoubleType)).
+withColumn("label",'cnt.cast(DoubleType))
+
+df1.printSchema
+root
+ |-- dteday: timestamp (nullable = true)
+ |-- season: double (nullable = true)
+ |-- yr: integer (nullable = true)
+ |-- mnth: double (nullable = true)
+ |-- hr: double (nullable = true)
+ |-- holiday: double (nullable = true)
+ |-- weekday: double (nullable = true)
+ |-- workingday: double (nullable = true)
+ |-- weathersit: double (nullable = true)
+ |-- temp: double (nullable = true)
+ |-- atemp: double (nullable = true)
+ |-- hum: double (nullable = true)
+ |-- windspeed: double (nullable = true)
+ |-- cnt: integer (nullable = true)
+ |-- label: double (nullable = true)
+
+
+import org.apache.spark.ml.feature.{StringIndexer, OneHotEncoder, VectorAssembler}
+val dfOne1 = new OneHotEncoder().setInputCol("season").setOutputCol("seasonVect")
+val dfOne2 = new OneHotEncoder().setInputCol("mnth").setOutputCol("mnthVect")
+val dfOne3 = new OneHotEncoder().setInputCol("hr").setOutputCol("hrVect")
+val dfOne4 = new OneHotEncoder().setInputCol("weekday").setOutputCol("weekdayVect")
+
+val va = new VectorAssembler().setOutputCol("features").setInputCols(Array("seasonVect","mnthVect","hrVect","weekdayVect","holiday","workingday","temp","atemp","hum","windspeed"))
+
+import org.apache.spark.ml.feature.StandardScaler
+
+val scaler = new StandardScaler().
+setInputCol("features").
+setOutputCol("scaledFeatures").
+setWithStd(true).
+setWithMean(true)
+
+import org.apache.spark.ml.regression.LinearRegression
+
+val lr = new LinearRegression().
+setMaxIter(500).
+setRegParam(0.1).
+setElasticNetParam(0.8).
+setFitIntercept(true).
+setFeaturesCol("scaledFeatures")
+
+import org.apache.spark.ml.Pipeline
+val pipeline = new Pipeline().setStages(Array(dfOne1,dfOne2,dfOne3,dfOne4,va,scaler,lr))
+
+val Array(trainingData, testData) = df1.randomSplit(Array(0.7,0.3),11L)
+
+val model = pipeline.fit(trainingData)
+
+val pred = model.transform(testData)
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+
+val evaluator = new RegressionEvaluator().
+setMetricName("rmse").
+setLabelCol("label").
+setPredictionCol("prediction")
+
+evaluator.evaluate(pred)
+res145: Double = 112.32305909586832
