@@ -95,3 +95,37 @@ setPredictionCol("prediction")
 
 evaluator.evaluate(pred)
 res145: Double = 112.32305909586832
+
+------------------------------
+
+import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
+
+val paramGrid = new ParamGridBuilder().addGrid(lr.regParam, Array(0.1, 0.01, 0.001)).addGrid(lr.fitIntercept, Array(true)).addGrid(lr.maxIter, Array(100,200,300)).build()
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+
+val cv = new CrossValidator().
+setEstimator(pipeline).
+setEvaluator(new RegressionEvaluator).
+setEstimatorParamMaps(paramGrid).
+setNumFolds(3)
+
+val model = cv.fit(trainingData)
+
+import org.apache.spark.ml.PipelineModel
+val bestmodel = model.bestModel.asInstanceOf[PipelineModel]
+
+import org.apache.spark.ml.regression.LinearRegressionModel
+val lrmodel = bestmodel.stages(6).asInstanceOf[LinearRegressionModel]
+
+val pred = bestmodel.transform(testData)
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+
+val evaluator = new RegressionEvaluator().
+setMetricName("rmse").
+setLabelCol("label").
+setPredictionCol("prediction")
+
+evaluator.evaluate(pred)
+res37: Double = 112.30847748928261

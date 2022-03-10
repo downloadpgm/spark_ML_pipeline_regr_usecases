@@ -2,20 +2,20 @@
 
 val rdd = sc.textFile("bike/hour.csv").filter( x => ! x.contains("instant")).map(x => x.split(","))
 
-rdd.take(5)
-res2: Array[Array[String]] = Array(Array(1, 2011-01-01, 1, 0, 1, 0, 0, 6, 0, 1, 0.24, 0.2879, 0.81, 0, 3, 13, 16), Array(2, 2011-01-01, 1, 0, 1, 1, 0, 6, 0, 1, 0.22, 0.2727, 0.8, 0, 8, 32, 40), Array(3, 2011-01-01, 1, 0, 1, 2, 0, 6, 0, 1, 0.22, 0.2727, 0.8, 0, 5, 27, 32), Array(4, 2011-01-01, 1, 0, 1, 3, 0, 6, 0, 1, 0.24, 0.2879, 0.75, 0, 3, 10, 13), Array(5, 2011-01-01, 1, 0, 1, 4, 0, 6, 0, 1, 0.24, 0.2879, 0.75, 0, 0, 1, 1))
+rdd.take(2)
+res0: Array[Array[String]] = Array(Array(1, 2011-01-01, 1, 0, 1, 0, 0, 6, 0, 1, 0.24, 0.2879, 0.81, 0, 3, 13, 16), Array(2, 2011-01-01, 1, 0, 1, 1, 0, 6, 0, 1, 0.22, 0.2727, 0.8, 0, 8, 32, 40))
 
 ---- Conversion to 1-to-k binary encoding vectors 
 
 def oneHotEncColumns(rddx: org.apache.spark.rdd.RDD[Array[String]], idx: Int):org.apache.spark.rdd.RDD[Array[Double]] = {
-  val categories = rddx.map(r => r(idx)).distinct.zipWithIndex.collect.toMap
+  val categories = rddx.map(r => r(idx)).distinct.zipWithIndex.collectAsMap
   val numCategories = categories.size
   val vetcateg = rddx.map(r => {
-      val categoryIdx = categories(r(idx)).toInt
-      val categoryFeatures = Array.ofDim[Double](numCategories)
-      categoryFeatures(categoryIdx) = 1.0
-      categoryFeatures
-  })
+    val categoryIdx = categories(r(idx)).toInt
+	val categoryFeatures = if (numCategories > 2) Array.ofDim[Double](numCategories) else Array.ofDim[Double](1)
+	if (numCategories > 2) categoryFeatures(categoryIdx) = 1.0 else categoryFeatures(0) = categoryIdx
+    categoryFeatures
+	})
   vetcateg
 }
 
@@ -32,49 +32,62 @@ def mergeArray(rddx: org.apache.spark.rdd.RDD[Array[String]], idx: Int*):org.apa
 
 val concat = mergeArray(rdd,2,5,7,9)
 
-val rdd1 = rdd.map(x => Array(x(16).toDouble,x(6).toDouble,x(8).toDouble,x(10).toDouble,x(11).toDouble,x(12).toDouble,x(13).toDouble))
+val rdd1 = rdd.map(x => Array(x(6).toDouble,x(8).toDouble,x(10).toDouble,x(11).toDouble,x(12).toDouble,x(13).toDouble,x(16).toDouble))
 
-val vect = rdd1.zip(concat).map(x => (x._1.toList ++ x._2.toList).toArray)
+val vect = concat.zip(rdd1).map(x => (x._1.toList ++ x._2.toList).toArray)
 
-vect.take(5)
-res3: Array[Array[Double]] = Array(Array(16.0, 0.0, 0.0, 0.24, 0.2879, 0.81, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0), Array(40.0, 0.0, 0.0, 0.22, 0.2727, 0.8, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0), Array(32.0, 0.0, 0.0, 0.22, 0.2727, 0.8, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0), Array(13.0, 0.0, 0.0, 0.24, 0.2879,...
+vect.take(2)
+res1: Array[Array[Double]] = Array(Array(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.24, 0.2879, 0.81, 0.0, 16.0), Array(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.22, 0.2727, 0.8, 0.0, 40.0))
 
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.regression.LabeledPoint
 
 val data = vect.map(x => {
-   val l = x(0).toDouble
-   val f = x.slice(1, x.size-1)
+   val arr_size = x.size - 1
+   val l = x(arr_size)-1
+   val f = x.slice(0,arr_size)
    LabeledPoint(l, Vectors.dense(f))
  })
 
-data.cache
-
-val sets = data.randomSplit(Array(0.8,0.2))
+val sets = data.randomSplit(Array(0.7,0.3), 11L)
 val trainSet = sets(0)
 val testSet = sets(1)
 
+trainSet.cache
 
 ---- MLlib Linear regression --------------
 
+import org.apache.spark.rdd.RDD
 import org.apache.spark.mllib.regression.LinearRegressionWithSGD
-val alg = new LinearRegressionWithSGD()
-alg.setIntercept(true)
-alg.optimizer.setNumIterations(200)
-
-alg.optimizer.setStepSize(1.0)
-val model = alg.run(trainSet)
-model: intercept = 78.71448830815403, numFeatures = 44
-
-val validPredicts = testSet.map(x => (model.predict(x.features),x.label))
-
-validPredicts.take(10)
-res4: Array[(Double, Double)] = Array((-19.356637666293082,1.0), (95.15992685749136,3.0), (114.9075918136643,36.0), (163.79898804547366,110.0), (101.94533093765051,34.0), (1.8577434869092002,2.0), (134.29346872641332,1.0), (207.53360161943473,30.0), (149.983317324417,22.0), (98.1977791856946,31.0))
-
 import org.apache.spark.mllib.evaluation.RegressionMetrics
-val validMetrics = new RegressionMetrics(validPredicts)
-validMetrics.rootMeanSquaredError   // 115.36357398371739
-validMetrics.meanSquaredError       // 13308.754202296634
+
+def iterateLRwSGD(iterNums:Array[Int], stepSizes:Array[Double], train:RDD[LabeledPoint], test:RDD[LabeledPoint]) = {
+  println("iter, step  -> RMSE, MSE") 
+  for(numIter <- iterNums; step <- stepSizes) {
+    val model = new LinearRegressionWithSGD
+	model.setIntercept(true)
+	model.optimizer.setNumIterations(numIter).setStepSize(step)
+	val lr = model.run(train)
+    val validPredicts = test.map(x => (lr.predict(x.features),x.label))
+    val metrics = new RegressionMetrics(validPredicts)
+    println("%d, %7.5f -> %.4f, %.4f".format(numIter, step, metrics.rootMeanSquaredError, metrics.meanSquaredError))
+  }
+}
+
+iterateLRwSGD(Array(100,300,500),Array(1, 0.1, 0.01, 0.001), trainSet, testSet)
+iter, step  -> RMSE, MSE
+100, 1.00000 -> 123.4816, 15247.7073
+100, 0.10000 -> 165.6834, 27450.9898
+100, 0.01000 -> 203.5409, 41428.8867
+100, 0.00100 -> 251.8643, 63435.6417
+300, 1.00000 -> 116.5723, 13589.0935
+300, 0.10000 -> 158.3852, 25085.8685
+300, 0.01000 -> 186.4213, 34752.9098
+300, 0.00100 -> 245.7862, 60410.8504
+500, 1.00000 -> 116.5723, 13589.0935
+500, 0.10000 -> 157.9805, 24957.8342
+500, 0.01000 -> 186.4213, 34752.9098
+500, 0.00100 -> 242.4772, 58795.1964
 
 ---- Analyzing statistics for standardization ---------------------
 
@@ -100,52 +113,26 @@ res10: org.apache.spark.mllib.linalg.Vector = [0.027944229628663223,0.2166256746
 ---- Apply standardization to dataset -------------------------------
 
 import org.apache.spark.mllib.feature.StandardScaler
-val scaler = new StandardScaler(true, false).fit(trainSet.map(x => x.features))
- 
-val trainScaled = trainSet.map(x => LabeledPoint(x.label,scaler.transform(x.features)))
+val vectors = trainSet.map(lp => lp.features)
+val scaler = new StandardScaler(withMean = true, withStd = true).fit(vectors)
+val trainScaled = trainSet.map(lp => LabeledPoint(lp.label,scaler.transform(lp.features)))
+val testScaled = testSet.map(lp => LabeledPoint(lp.label,scaler.transform(lp.features)))
 
----- MLlib Linear regression --------------
----- Rejected due to NEGATIVE predictions 
-
-import org.apache.spark.mllib.regression.LinearRegressionWithSGD
-val alg = new LinearRegressionWithSGD()
-alg.setIntercept(true)
-alg.optimizer.setNumIterations(200)
-
-alg.optimizer.setStepSize(1.0)
-val model = alg.run(trainScaled)
-model: intercept = 189.20104757121348, numFeatures = 44
-
-val validPredicts = testSet.map(x => (model.predict(scaler.transform(x.features)),x.label))
-
-validPredicts.take(10)
-res15: Array[(Double, Double)] = Array((-21.199721380726515,1.0), (91.65128131516427,3.0), (103.902773703906,36.0), (151.9874782206591,110.0), (90.88596574049667,34.0), (-6.798132508469138,2.0), (126.28077281341028,1.0), (205.5934282006404,30.0), (150.77031052474302,22.0), (100.18939818287623,31.0))
-
-
-------- Transforming the label data --------------
-
-import java.lang.Math._
-val trainSet_lg = trainSet.map{ case LabeledPoint(x,y) => LabeledPoint(Math.log(x), y) }
-val testSet_lg = testSet.map{ case LabeledPoint(x,y) => LabeledPoint(Math.log(x), y) }
+trainScaled.cache
 
 ---- MLlib Linear regression --------------
 
-import org.apache.spark.mllib.regression.LinearRegressionWithSGD
-val alg = new LinearRegressionWithSGD()
-alg.setIntercept(true)
-alg.optimizer.setNumIterations(200)
-
-alg.optimizer.setStepSize(1.0)
-val model = alg.run(trainSet_lg)
-model: intercept = 2.6050312517953813, numFeatures = 44
-
-val validPredicts = testSet_lg.map(x => (Math.exp(model.predict(x.features)),Math.exp(x.label)))
-
-validPredicts.take(10)
-res15: Array[(Double, Double)] = Array((87.84776374759001,36.0), (131.43045823685435,93.00000000000003), (96.02348763453185,34.99999999999999), (104.52110593325693,36.0), (87.12763025477597,34.00000000000001), (67.74588434611948,38.99999999999999), (97.48077784485073,93.00000000000003), (88.82843309132312,74.99999999999997), (154.78089050149825,53.00000000000001), (72.27399298319287,31.0))
-
-import org.apache.spark.mllib.evaluation.RegressionMetrics
-val validMetrics = new RegressionMetrics(validPredicts)
-validMetrics.rootMeanSquaredError   // 127.08541595611491
-validMetrics.meanSquaredError       // 16150.702948738746
-
+iterateLRwSGD(Array(100,300,500),Array(1, 0.1, 0.01, 0.001), trainScaled, testScaled)
+iter, step  -> RMSE, MSE
+100, 1.00000 -> 111.6785, 12472.0780
+100, 0.10000 -> 116.2307, 13509.5644
+100, 0.01000 -> 218.3748, 47687.5743
+100, 0.00100 -> 255.3286, 65192.7186
+300, 1.00000 -> 111.6785, 12472.0780
+300, 0.10000 -> 114.0122, 12998.7735
+300, 0.01000 -> 194.3978, 37790.5221
+300, 0.00100 -> 251.5863, 63295.6718
+500, 1.00000 -> 111.6785, 12472.0780
+500, 0.10000 -> 114.0122, 12998.7735
+500, 0.01000 -> 187.2393, 35058.5679
+500, 0.00100 -> 249.4216, 62211.1252

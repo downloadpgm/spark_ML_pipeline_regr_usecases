@@ -1,0 +1,107 @@
+
+val rdd = sc.textFile("spark/data/housing/housing.data").map( x => x.split(",")).map( x => x.map( y => y.trim().toDouble))
+rdd: org.apache.spark.rdd.RDD[Array[Double]] = MapPartitionsRDD[10] at map at <console>:24
+
+rdd.take(2)
+res4: Array[Array[Double]] = Array(Array(0.00632, 18.0, 2.31, 0.0, 0.538, 6.575, 65.2, 4.09, 1.0, 296.0, 15.3, 396.9, 4.98, 24.0), Array(0.02731, 0.0, 7.07, 0.0, 0.469, 6.421, 78.9, 4.9671, 2.0, 242.0, 17.8, 396.9, 9.14, 21.6))
+
+rdd.count
+res3: Long = 506
+
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.regression.LabeledPoint
+
+val data = rdd.map(x => {
+  val arr_size = x.size - 1 
+  val l = x(arr_size)
+  val f = x.slice(0,arr_size)
+  LabeledPoint(l,Vectors.dense(f))
+})
+
+val sets = data.randomSplit(Array(0.7,0.3), 11L)
+val trainSet = sets(0)
+val testSet = sets(1)
+
+trainSet.cache
+
+---- MLlib Linear regression --------------
+
+import org.apache.spark.rdd.RDD
+import org.apache.spark.mllib.regression.LinearRegressionWithSGD
+import org.apache.spark.mllib.evaluation.RegressionMetrics
+
+def iterateLRwSGD(iterNums:Array[Int], stepSizes:Array[Double], train:RDD[LabeledPoint], test:RDD[LabeledPoint]) = {
+  println("iter, step  -> RMSE, MSE") 
+  for(numIter <- iterNums; step <- stepSizes) {
+    val model = new LinearRegressionWithSGD
+	model.setIntercept(true)
+	model.optimizer.setNumIterations(numIter).setStepSize(step)
+	val lr = model.run(train)
+    val validPredicts = test.map(x => (lr.predict(x.features),x.label))
+    val metrics = new RegressionMetrics(validPredicts)
+    println("%d, %7.5f -> %.4f, %.4f".format(numIter, step, metrics.rootMeanSquaredError, metrics.meanSquaredError))
+  }
+}
+
+iterateLRwSGD(Array(100,300,500),Array(1, 0.1, 0.01, 0.001), trainSet, testSet)
+iter, step  -> RMSE, MSE
+100, 1.00000 -> NaN, NaN
+100, 0.10000 -> NaN, NaN
+100, 0.01000 -> Infinity, Infinity
+100, 0.00100 -> Infinity, Infinity
+300, 1.00000 -> NaN, NaN
+300, 0.10000 -> NaN, NaN
+300, 0.01000 -> NaN, NaN
+300, 0.00100 -> NaN, NaN
+500, 1.00000 -> NaN, NaN
+500, 0.10000 -> NaN, NaN
+500, 0.01000 -> NaN, NaN
+500, 0.00100 -> NaN, NaN
+
+---- Analyzing statistics for standardization ---------------------
+
+import org.apache.spark.mllib.linalg.Matrix
+import org.apache.spark.mllib.linalg.distributed.RowMatrix
+
+val vectors = trainSet.map{ case LabeledPoint(x,y) => y }
+val matrix = new RowMatrix(vectors)
+val matrixSummary = matrix.computeColumnSummaryStatistics()
+
+matrixSummary.max
+res7: org.apache.spark.mllib.linalg.Vector = [73.5341,100.0,27.74,1.0,0.871,8.78,100.0,10.7103,24.0,711.0,22.0,396.9,37.97]
+
+matrixSummary.min
+res8: org.apache.spark.mllib.linalg.Vector = [0.00632,0.0,0.74,0.0,0.385,3.561,6.0,1.1296,1.0,188.0,12.6,0.32,1.73]
+
+matrixSummary.mean
+res9: org.apache.spark.mllib.linalg.Vector = [3.9937140345821334,10.280979827089334,11.387319884726224,0.07780979827089338,0.5619599423631126,6.246371757925073,69.97435158501438,3.6808164265129677,10.03170028818444,418.8097982708933,18.610662824207484,350.49723342939484,13.058299711815565]
+
+matrixSummary.variance
+res10: org.apache.spark.mllib.linalg.Vector = [74.0087595205224,521.9851285169328,47.09815435691561,0.07196281921007479,0.014315969633522673,0.509278985674068,775.9463633789208,4.260354171492396,81.15217137812137,29549.998400826244,4.344307940897195,9706.51083856675,53.38754941280339]
+
+----- Standardizing features ------------------------------
+
+import org.apache.spark.mllib.feature.StandardScaler
+val vectors = trainSet.map(lp => lp.features)
+val scaler = new StandardScaler(withMean = true, withStd = true).fit(vectors)
+val trainScaled = trainSet.map(lp => LabeledPoint(lp.label,scaler.transform(lp.features)))
+val testScaled = testSet.map(lp => LabeledPoint(lp.label,scaler.transform(lp.features)))
+
+trainScaled.cache
+
+---- MLlib Linear regression --------------
+
+iterateLRwSGD(Array(100,300,500),Array(1, 0.1, 0.01, 0.001), trainScaled, testScaled)
+iter, step  -> RMSE, MSE
+100, 1.00000 -> 4.3040, 18.5241
+100, 0.10000 -> 5.4506, 29.7088
+100, 0.01000 -> 19.4179, 377.0537
+100, 0.00100 -> 23.8432, 568.4999
+300, 1.00000 -> 4.3040, 18.5241
+300, 0.10000 -> 4.8687, 23.7047
+300, 0.01000 -> 16.6867, 278.4449
+300, 0.00100 -> 23.5317, 553.7430
+500, 1.00000 -> 4.3040, 18.5241
+500, 0.10000 -> 4.8687, 23.7047
+500, 0.01000 -> 16.1121, 259.5987
+500, 0.00100 -> 23.5317, 553.7430

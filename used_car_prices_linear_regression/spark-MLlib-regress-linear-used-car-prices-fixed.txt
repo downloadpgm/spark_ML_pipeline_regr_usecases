@@ -159,7 +159,7 @@ import org.apache.spark.mllib.regression.LinearRegressionWithSGD
 import org.apache.spark.mllib.evaluation.RegressionMetrics
 
 def iterateLRwSGD(iterNums:Array[Int], stepSizes:Array[Double], train:RDD[LabeledPoint], test:RDD[LabeledPoint]) = {
-  println("iter, step -> RMSE, MSE") 
+  println("iter, step  -> RMSE, MSE") 
   for(numIter <- iterNums; step <- stepSizes) {
     val model = new LinearRegressionWithSGD
 	model.setIntercept(true)
@@ -172,7 +172,7 @@ def iterateLRwSGD(iterNums:Array[Int], stepSizes:Array[Double], train:RDD[Labele
 }
 
 iterateLRwSGD(Array(100,200,300),Array(1, 0.1, 0.01, 0.001, 0.0001, 0.0005, 0.00001), trainSet, testSet)
-iter, step -> RMSE, MSE
+iter, step  -> RMSE, MSE
 100, 1.00000 -> NaN, NaN
 100, 0.10000 -> NaN, NaN
 100, 0.01000 -> NaN, NaN
@@ -195,6 +195,7 @@ iter, step -> RMSE, MSE
 300, 0.00050 -> NaN, NaN
 300, 0.00001 -> 11.7619, 138.3413
 
+
 ----- Decide to scale features because variabiliaty increases even reducing step size of model 
 
 import org.apache.spark.mllib.feature.StandardScaler
@@ -208,7 +209,7 @@ trainScaled.cache
 ---- MLlib Linear regression --------------
 
 iterateLRwSGD(Array(100,200,300),Array(1, 0.1, 0.01, 0.001, 0.0001, 0.0005, 0.00001), trainScaled, testScaled)
-iter, step -> RMSE, MSE
+iter, step  -> RMSE, MSE
 100, 1.00000 -> 7.4060, 54.8484
 100, 0.10000 -> 8.2574, 68.1852
 100, 0.01000 -> 11.6314, 135.2900
