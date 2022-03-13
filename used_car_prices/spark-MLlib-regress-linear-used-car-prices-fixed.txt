@@ -208,6 +208,23 @@ trainScaled.cache
 
 ---- MLlib Linear regression --------------
 
+import org.apache.spark.rdd.RDD
+import org.apache.spark.mllib.regression.LinearRegressionWithSGD
+import org.apache.spark.mllib.evaluation.RegressionMetrics
+
+def iterateLRwSGD(iterNums:Array[Int], stepSizes:Array[Double], train:RDD[LabeledPoint], test:RDD[LabeledPoint]) = {
+  println("iter, step  -> RMSE, MSE") 
+  for(numIter <- iterNums; step <- stepSizes) {
+    val model = new LinearRegressionWithSGD
+	model.setIntercept(true)
+	model.optimizer.setNumIterations(numIter).setStepSize(step)
+	val lr = model.run(train)
+    val validPredicts = test.map(x => (lr.predict(x.features),x.label))
+    val metrics = new RegressionMetrics(validPredicts)
+    println("%d, %7.5f -> %.4f, %.4f".format(numIter, step, metrics.rootMeanSquaredError, metrics.meanSquaredError))
+  }
+}
+
 iterateLRwSGD(Array(100,200,300),Array(1, 0.1, 0.01, 0.001, 0.0001, 0.0005, 0.00001), trainScaled, testScaled)
 iter, step  -> RMSE, MSE
 100, 1.00000 -> 7.4060, 54.8484
