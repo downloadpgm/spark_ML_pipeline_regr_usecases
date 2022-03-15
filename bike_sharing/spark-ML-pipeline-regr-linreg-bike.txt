@@ -73,7 +73,6 @@ import org.apache.spark.ml.regression.LinearRegression
 val lr = new LinearRegression().
 setMaxIter(500).
 setRegParam(0.1).
-setElasticNetParam(0.8).
 setFitIntercept(true).
 setFeaturesCol("scaledFeatures")
 
@@ -100,7 +99,10 @@ res145: Double = 112.32305909586832
 
 import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
 
-val paramGrid = new ParamGridBuilder().addGrid(lr.regParam, Array(0.1, 0.01, 0.001)).addGrid(lr.fitIntercept, Array(true)).addGrid(lr.maxIter, Array(100,200,300)).build()
+val paramGrid = new ParamGridBuilder().
+addGrid(lr.regParam, Array(1, 0.1, 0.01, 0.001)).
+addGrid(lr.fitIntercept, Array(true)).
+addGrid(lr.maxIter, Array(100,200,300)).build()
 
 import org.apache.spark.ml.evaluation.RegressionEvaluator
 
@@ -118,6 +120,72 @@ val bestmodel = model.bestModel.asInstanceOf[PipelineModel]
 import org.apache.spark.ml.regression.LinearRegressionModel
 val lrmodel = bestmodel.stages(6).asInstanceOf[LinearRegressionModel]
 
+lrmodel.getRegParam
+res7: Double = 1.0
+
+lrmodel.getMaxIter
+res8: Int = 100
+
+lrmodel.getFitIntercept
+res9: Boolean = true
+
+lrmodel.getStandardization
+res10: Boolean = true
+
+println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
+LR Model coefficients:
+0.0
+-25.7131475793608
+-9.247786153570484
+-14.906226381189803
+0.0
+0.9863327672386838
+-0.2303898684004245
+1.2719058773694891
+-1.9647206294973525
+1.2122742071449601
+-4.609988190547383
+-10.056010005982062
+-3.308907799689818
+6.522446416460105
+3.540440565532418
+-1.1892370980924025
+-7.708842455576622
+-10.768844919646359
+-12.356943165793153
+-14.167449677191854
+-14.317790606451734
+-11.599620312410584
+-0.032673249940157335
+26.64731988973515
+52.19587739388253
+24.15403097379302
+12.111211784882743
+15.861543862460596
+24.36061649322265
+21.907004348323746
+18.40505046096757
+20.669462944665923
+32.56124962983805
+64.04890563969505
+57.885529496128925
+35.96732649246604
+21.80227559176302
+12.797888179052386
+5.4671614326479405
+-5.751608711888122
+-1.5060135719527044
+-1.0760285917845764
+-2.067049582179042
+-1.1735014332008822
+1.404256370275144
+-4.941742995039431
+-1.5508323437280536
+30.870987820800895
+26.428009222329255
+-30.450537854870397
+-6.346885882241119
+
 val pred = bestmodel.transform(testData)
 
 import org.apache.spark.ml.evaluation.RegressionEvaluator
@@ -128,4 +196,4 @@ setLabelCol("label").
 setPredictionCol("prediction")
 
 evaluator.evaluate(pred)
-res37: Double = 112.30847748928261
+res37: Double = 112.35660980140659

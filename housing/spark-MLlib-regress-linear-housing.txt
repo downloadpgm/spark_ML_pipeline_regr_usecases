@@ -1,5 +1,5 @@
 
-val rdd = sc.textFile("spark/data/housing/housing.data").map( x => x.split(",")).map( x => x.map( y => y.trim().toDouble))
+val rdd = sc.textFile("housing/housing.data").map( x => x.split(",")).map( x => x.map( y => y.trim().toDouble))
 rdd: org.apache.spark.rdd.RDD[Array[Double]] = MapPartitionsRDD[10] at map at <console>:24
 
 rdd.take(2)
@@ -110,9 +110,9 @@ def iterateLRwSGD(iterNums:Array[Int], stepSizes:Array[Double], train:RDD[Labele
 
 iterateLRwSGD(Array(100,300,500),Array(1, 0.1, 0.01, 0.001), trainScaled, testScaled)
 iter, step  -> RMSE, MSE
-100, 1.00000 -> 4.3040, 18.5241
+100, 1.00000 -> 4.3040, 18.5241 *
 100, 0.10000 -> 5.4506, 29.7088
-100, 0.01000 -> 19.4179, 377.0537
+100, 0.01000 -> 19.4179, 377.0537 
 100, 0.00100 -> 23.8432, 568.4999
 300, 1.00000 -> 4.3040, 18.5241
 300, 0.10000 -> 4.8687, 23.7047

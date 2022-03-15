@@ -18,7 +18,7 @@ add("B", DoubleType).
 add("LSTAT", DoubleType).
 add("MEDV", DoubleType)
 
-val df = spark.read.format("csv").option("ignoreLeadingWhiteSpace","true").schema(schemaHousing).load("first-edition/ch07/housing.data")
+val df = spark.read.format("csv").option("ignoreLeadingWhiteSpace","true").schema(schemaHousing).load("housing/housing.data")
 
 val dfraw = df.withColumn("label",'MEDV)
 
@@ -86,7 +86,10 @@ LR Model coefficients:
 
 import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
 
-val paramGrid = new ParamGridBuilder().addGrid(lr.regParam, Array(0.1, 0.01, 0.001)).addGrid(lr.fitIntercept).addGrid(lr.maxIter, Array(100,300,500)).addGrid(lr.elasticNetParam, Array(0.8)).build()
+val paramGrid = new ParamGridBuilder().
+addGrid(lr.regParam, Array(1, 0.1, 0.01, 0.001)).
+addGrid(lr.fitIntercept).
+addGrid(lr.maxIter, Array(100,300,500)).build()
 
 import org.apache.spark.ml.evaluation.RegressionEvaluator
 
@@ -103,6 +106,18 @@ val bestmodel = model.bestModel.asInstanceOf[PipelineModel]
 
 import org.apache.spark.ml.regression.LinearRegressionModel
 val lrmodel = bestmodel.stages(2).asInstanceOf[LinearRegressionModel]
+
+lrmodel.getRegParam
+res11: Double = 0.01
+
+lrmodel.getMaxIter
+res12: Int = 100
+
+lrmodel.getFitIntercept
+res13: Boolean = true
+
+lrmodel.getStandardization
+res14: Boolean = true
 
 println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
 LR Model coefficients:

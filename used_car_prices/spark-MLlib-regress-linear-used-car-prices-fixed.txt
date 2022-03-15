@@ -228,7 +228,7 @@ def iterateLRwSGD(iterNums:Array[Int], stepSizes:Array[Double], train:RDD[Labele
 iterateLRwSGD(Array(100,200,300),Array(1, 0.1, 0.01, 0.001, 0.0001, 0.0005, 0.00001), trainScaled, testScaled)
 iter, step  -> RMSE, MSE
 100, 1.00000 -> 7.4060, 54.8484
-100, 0.10000 -> 8.2574, 68.1852
+100, 0.10000 -> 8.2574, 68.1852  *
 100, 0.01000 -> 11.6314, 135.2900
 100, 0.00100 -> 13.8052, 190.5842
 100, 0.00010 -> 14.1306, 199.6748
