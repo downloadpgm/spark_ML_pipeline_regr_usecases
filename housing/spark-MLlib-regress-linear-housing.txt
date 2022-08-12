@@ -1,6 +1,5 @@
 
 val rdd = sc.textFile("housing/housing.data").map( x => x.split(",")).map( x => x.map( y => y.trim().toDouble))
-rdd: org.apache.spark.rdd.RDD[Array[Double]] = MapPartitionsRDD[10] at map at <console>:24
 
 rdd.take(2)
 res4: Array[Array[Double]] = Array(Array(0.00632, 18.0, 2.31, 0.0, 0.538, 6.575, 65.2, 4.09, 1.0, 296.0, 15.3, 396.9, 4.98, 24.0), Array(0.02731, 0.0, 7.07, 0.0, 0.469, 6.421, 78.9, 4.9671, 2.0, 242.0, 17.8, 396.9, 9.14, 21.6))
