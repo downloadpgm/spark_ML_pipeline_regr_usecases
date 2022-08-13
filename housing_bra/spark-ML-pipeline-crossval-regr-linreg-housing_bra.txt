@@ -330,8 +330,8 @@ corr.toDense.rowIter.foreach( x => {
 -0.099  -0.049  0.017   -0.179  -0.136  -0.004  -0.056  -0.052  0.180   -0.183 -0.618   1.000   -0.308
 -0.162  -0.112  -0.017  -0.110  -0.230  -0.011  0.031   -0.159  0.010   -0.008 -0.523   -0.308  1.000
 
-// bathrooms x suites = 0.753 can be considered as multicolinear
-// floors x unitFloor = 0.738 can be considered as multicolinear
+// bathrooms x suites = 0.753 can be considered multicolinear
+// floors x unitFloor = 0.738 can be considered multicolinear
 
 
 // ----- building the logistic regression model

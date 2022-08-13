@@ -1,0 +1,196 @@
+import org.apache.spark.sql.types._
+import spark.implicits._
+
+val schemaHousing = new StructType().
+add("CRIM", DoubleType).
+add("ZN", DoubleType).
+add("INDUS", DoubleType).
+add("CHAS", IntegerType).
+add("NOX", DoubleType).
+add("RM", DoubleType).
+add("AGE", DoubleType).
+add("DIS", DoubleType).
+add("RAD", IntegerType).
+add("TAX", DoubleType).
+add("PTRATIO", DoubleType).
+add("B", DoubleType).
+add("LSTAT", DoubleType).
+add("MEDV", DoubleType)
+
+val df = spark.read.format("csv").option("ignoreLeadingWhiteSpace","true").schema(schemaHousing).load("housing/housing.data")
+
+df.show(10)
++-------+----+-----+----+-----+-----+-----+------+---+-----+-------+------+-----+----+
+|   CRIM|  ZN|INDUS|CHAS|  NOX|   RM|  AGE|   DIS|RAD|  TAX|PTRATIO|     B|LSTAT|MEDV|
++-------+----+-----+----+-----+-----+-----+------+---+-----+-------+------+-----+----+
+|0.00632|18.0| 2.31|   0|0.538|6.575| 65.2|  4.09|  1|296.0|   15.3| 396.9| 4.98|24.0|
+|0.02731| 0.0| 7.07|   0|0.469|6.421| 78.9|4.9671|  2|242.0|   17.8| 396.9| 9.14|21.6|
+|0.02729| 0.0| 7.07|   0|0.469|7.185| 61.1|4.9671|  2|242.0|   17.8|392.83| 4.03|34.7|
+|0.03237| 0.0| 2.18|   0|0.458|6.998| 45.8|6.0622|  3|222.0|   18.7|394.63| 2.94|33.4|
+|0.06905| 0.0| 2.18|   0|0.458|7.147| 54.2|6.0622|  3|222.0|   18.7| 396.9| 5.33|36.2|
+|0.02985| 0.0| 2.18|   0|0.458| 6.43| 58.7|6.0622|  3|222.0|   18.7|394.12| 5.21|28.7|
+|0.08829|12.5| 7.87|   0|0.524|6.012| 66.6|5.5605|  5|311.0|   15.2| 395.6|12.43|22.9|
+|0.14455|12.5| 7.87|   0|0.524|6.172| 96.1|5.9505|  5|311.0|   15.2| 396.9|19.15|27.1|
+|0.21124|12.5| 7.87|   0|0.524|5.631|100.0|6.0821|  5|311.0|   15.2|386.63|29.93|16.5|
+|0.17004|12.5| 7.87|   0|0.524|6.004| 85.9|6.5921|  5|311.0|   15.2|386.71| 17.1|18.9|
++-------+----+-----+----+-----+-----+-----+------+---+-----+-------+------+-----+----+
+only showing top 10 rows
+
+df.describe().show
++-------+------------------+------------------+------------------+------------------+-------------------+------------------+------------------+-----------------+-----------------+------------------+------------------+------------------+------------------+------------------+
+|summary|              CRIM|                ZN|             INDUS|              CHAS|                NOX|                RM|               AGE|              DIS|              RAD|               TAX|           PTRATIO|                 B|             LSTAT|              MEDV|
++-------+------------------+------------------+------------------+------------------+-------------------+------------------+------------------+-----------------+-----------------+------------------+------------------+------------------+------------------+------------------+
+|  count|               506|               506|               506|               506|                506|               506|               506|              506|              506|               506|               506|               506|               506|               506|
+|   mean|3.6135235573122535|11.363636363636363|11.136778656126504|0.0691699604743083| 0.5546950592885372| 6.284634387351787| 68.57490118577078|3.795042687747034|9.549407114624506| 408.2371541501976|18.455533596837967|356.67403162055257|12.653063241106723|22.532806324110698|
+| stddev| 8.601545105332491| 23.32245299451514| 6.860352940897589|0.2539940413404101|0.11587767566755584|0.7026171434153232|28.148861406903595| 2.10571012662761|8.707259384239366|168.53711605495903|2.1649455237144455| 91.29486438415782| 7.141061511348571| 9.197104087379815|
+|    min|           0.00632|               0.0|              0.46|                 0|              0.385|             3.561|               2.9|           1.1296|                1|             187.0|              12.6|              0.32|              1.73|               5.0|
+|    max|           88.9762|             100.0|             27.74|                 1|              0.871|              8.78|             100.0|          12.1265|               24|             711.0|              22.0|             396.9|             37.97|              50.0|
++-------+------------------+------------------+------------------+------------------+-------------------+------------------+------------------+-----------------+-----------------+------------------+------------------+------------------+------------------+------------------+
+
+
+val df1 = df.withColumnRenamed("MEDV", "label")
+
+import org.apache.spark.ml.feature.VectorAssembler
+
+val va = new VectorAssembler().setOutputCol("features").setInputCols(Array("CRIM","ZN","INDUS","CHAS","NOX","RM","AGE","DIS","RAD","TAX","PTRATIO","B","LSTAT"))
+val df2 = va.transform(df1)
+
+df2.printSchema
+root
+ |-- CRIM: double (nullable = true)
+ |-- ZN: double (nullable = true)
+ |-- INDUS: double (nullable = true)
+ |-- CHAS: integer (nullable = true)
+ |-- NOX: double (nullable = true)
+ |-- RM: double (nullable = true)
+ |-- AGE: double (nullable = true)
+ |-- DIS: double (nullable = true)
+ |-- RAD: integer (nullable = true)
+ |-- TAX: double (nullable = true)
+ |-- PTRATIO: double (nullable = true)
+ |-- B: double (nullable = true)
+ |-- LSTAT: double (nullable = true)
+ |-- label: double (nullable = true)
+ |-- features: vector (nullable = true)
+
+
+// ----- building the decision tree model
+
+import org.apache.spark.ml.regression.DecisionTreeRegressor
+val dt = new DecisionTreeRegressor
+dt.setMaxDepth(7).setMaxBins(32).setFeaturesCol("features")
+
+import org.apache.spark.ml.Pipeline
+
+val pipeline = new Pipeline().setStages(Array(va,dt))
+
+val Array(trainingData, testData) = df1.randomSplit(Array(0.7,0.3),11L)
+
+trainingData.cache
+testData.cache
+
+val model = pipeline.fit(trainingData)
+
+val pred = model.transform(testData)
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+val bceval = new RegressionEvaluator()
+
+bceval.setMetricName("rmse").evaluate(pred)
+res20: Double = 4.683520801595622
+
+bceval.setMetricName("r2").evaluate(pred)
+res21: Double = 0.7237911466887421
+
+import org.apache.spark.ml.regression.DecisionTreeRegressionModel
+val dtmodel = model.stages(1).asInstanceOf[DecisionTreeRegressionModel]
+
+dtmodel.toDebugString
+res23: String =
+"DecisionTreeRegressionModel (uid=dtr_f91cfaa59b85) of depth 7 with 139 nodes
+  If (feature 11 <= 9.905000000000001)
+   If (feature 5 <= 6.9990000000000006)
+    If (feature 6 <= 94.05)
+     If (feature 5 <= 6.4830000000000005)
+      If (feature 8 <= 222.5)
+       If (feature 5 <= 6.1575)
+        Predict: 36.2
+       Else (feature 5 > 6.1575)
+        Predict: 28.700000000000003
+      Else (feature 8 > 222.5)
+       If (feature 5 <= 6.1575)
+        If (feature 2 <= 13.36)
+         Predict: 20.61851851851852
+        Else (feature 2 > 13.36)
+         Predict: 27.5
+       Else (feature 5 > 6.1575)
+        If (feature 6 <= 36.150000000000006)
+         Predict: 24.814285714285717
+        Else (feature 6 > 36.150000000000006)
+         Predict: 23.24736842105263
+     Else (featur...
+
+-------------------
+
+import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
+
+val paramGrid = new ParamGridBuilder().
+addGrid(dt.maxDepth, Array(7, 10, 20)).
+addGrid(dt.maxBins, Array(16, 32, 48)).build()
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+
+val cv = new CrossValidator().
+setEstimator(pipeline).
+setEvaluator(new RegressionEvaluator).
+setEstimatorParamMaps(paramGrid).
+setNumFolds(3)
+
+val model = cv.fit(trainingData)
+
+import org.apache.spark.ml.PipelineModel
+val bestmodel = model.bestModel.asInstanceOf[PipelineModel]
+
+import org.apache.spark.ml.regression.DecisionTreeRegressionModel
+val dtmodel = bestmodel.stages(1).asInstanceOf[DecisionTreeRegressionModel]
+
+dtmodel.getMaxDepth
+res9: Int = 7
+
+dtmodel.getMaxBins
+res10: Int = 16
+
+val pred = bestmodel.transform(testData)
+
+val bceval = new RegressionEvaluator()
+
+bceval.setMetricName("rmse").evaluate(pred)
+res26: Double = 4.997664703429533
+
+bceval.setMetricName("r2").evaluate(pred)
+res27: Double = 0.6854954598157025
+
+dtmodel.toDebugString
+res28: String =
+"DecisionTreeRegressionModel (uid=dtr_f91cfaa59b85) of depth 7 with 141 nodes
+  If (feature 11 <= 9.905000000000001)
+   If (feature 5 <= 6.9990000000000006)
+    If (feature 6 <= 94.05)
+     If (feature 5 <= 6.4830000000000005)
+      If (feature 8 <= 222.5)
+       If (feature 5 <= 6.205)
+        Predict: 36.2
+       Else (feature 5 > 6.205)
+        Predict: 28.700000000000003
+      Else (feature 8 > 222.5)
+       If (feature 5 <= 6.1215)
+        If (feature 5 <= 5.3759999999999994)
+         Predict: 27.5
+        Else (feature 5 > 5.3759999999999994)
+         Predict: 20.592000000000002
+       Else (feature 5 > 6.1215)
+        If (feature 0 <= 0.059179999999999996)
+         Predict: 22.884615384615383
+        Else (feature 0 > 0.059179999999999996)
+         Predict: 24.25
+...
