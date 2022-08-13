@@ -1,0 +1,339 @@
+
+val df = spark.read.format("csv").option("inferSchema","true").load("used_cars/used_cars_price_train-data.csv").toDF("Row","Name","Location","Year","Kilometers_Driven","Fuel_Type","Transmission","Owner_Type","Mileage","Engine","Power","Seats","New_Price","Price")
+
+df.printSchema
+root
+ |-- Row: integer (nullable = true)
+ |-- Name: string (nullable = true)
+ |-- Location: string (nullable = true)
+ |-- Year: integer (nullable = true)
+ |-- Kilometers_Driven: integer (nullable = true)
+ |-- Fuel_Type: string (nullable = true)
+ |-- Transmission: string (nullable = true)
+ |-- Owner_Type: string (nullable = true)
+ |-- Mileage: string (nullable = true)
+ |-- Engine: string (nullable = true)
+ |-- Power: string (nullable = true)
+ |-- Seats: double (nullable = true)
+ |-- New_Price: string (nullable = true)
+ |-- Price: double (nullable = true)
+
+df.describe().show
++-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+
+|summary|               Row|                Name| Location|              Year|Kilometers_Driven|Fuel_Type|Transmission|Owner_Type| Mileage| Engine|   Power|             Seats| New_Price|             Price|
++-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+
+|  count|              6019|                6019|     6019|              6019|             6019|     6019|        6019|      6019|    6017|   5983|    5983|              5977|       824|              6019|
+|   mean|            3009.0|                null|     null|2013.3581990363848|58738.38029573019|     null|        null|      null|    null|   null|    null| 5.278735151413753|      null| 9.479468350224273|
+| stddev|1737.6799666988932|                null|     null|  3.26974211609139|91268.84320624865|     null|        null|      null|    null|   null|    null|0.8088395547482933|      null|11.187917112455484|
+|    min|                 0|Ambassador Classi...|Ahmedabad|              1998|              171|      CNG|   Automatic|     First|0.0 kmpl|1047 CC| 100 bhp|               0.0|      1 Cr|              0.44|
+|    max|              6018|Volvo XC90 2007-2...|     Pune|              2019|          6500000|   Petrol|      Manual|     Third|9.9 kmpl| 999 CC|null bhp|              10.0|99.92 Lakh|             160.0|
++-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+
+
+df.groupBy("Mileage").count.orderBy('count.desc).show(3)
++---------+-----+
+|  Mileage|count|
++---------+-----+
+|17.0 kmpl|  172|
+|18.9 kmpl|  172|
+|18.6 kmpl|  119|
++---------+-----+
+only showing top 3 rows
+
+df.groupBy("Engine").count.orderBy('count.desc).show(3)
++-------+-----+
+| Engine|count|
++-------+-----+
+|1197 CC|  606|
+|1248 CC|  512|
+|1498 CC|  304|
++-------+-----+
+only showing top 3 rows
+
+df.groupBy("Power").count.orderBy('count.desc).show(3)
++--------+-----+
+|   Power|count|
++--------+-----+
+|  74 bhp|  235|
+|98.6 bhp|  131|
+|73.9 bhp|  125|
++--------+-----+
+only showing top 3 rows
+
+df.groupBy("Seats").count.orderBy('count.desc).show(3)
++-----+-----+
+|Seats|count|
++-----+-----+
+|  5.0| 5014|
+|  7.0|  674|
+|  8.0|  134|
++-----+-----+
+only showing top 3 rows
+
+
+val df1 = df.na.fill(Map("Mileage" -> "18.9 kmpl", "Engine" -> "1197 CC", "Power" -> "74 bhp", "Seats" -> 5.0)).na.replace("Power", Map("null bhp" -> "74 bhp"))
+
+import org.apache.spark.sql.types._
+
+val df2 = df1.withColumn("age", (lit(2021)-'Year).cast(DoubleType)).
+withColumn("mileage_aux", regexp_extract('Mileage,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+withColumn("engine_aux", regexp_extract('Engine,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+withColumn("power_aux", regexp_extract('Power,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+withColumnRenamed("Price", "label").
+drop("Row")
+
+df2.printSchema
+root
+ |-- Name: string (nullable = true)
+ |-- Location: string (nullable = true)
+ |-- Year: integer (nullable = true)
+ |-- Kilometers_Driven: integer (nullable = true)
+ |-- Fuel_Type: string (nullable = true)
+ |-- Transmission: string (nullable = true)
+ |-- Owner_Type: string (nullable = true)
+ |-- Mileage: string (nullable = false)
+ |-- Engine: string (nullable = false)
+ |-- Power: string (nullable = false)
+ |-- Seats: double (nullable = false)
+ |-- New_Price: string (nullable = true)
+ |-- label: double (nullable = true)
+ |-- age: double (nullable = true)
+ |-- mileage_aux: double (nullable = true)
+ |-- engine_aux: double (nullable = true)
+ |-- power_aux: double (nullable = true)
+
+df2.describe().show
++-------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+------------------+------------------+------------------+-----------------+
+|summary|                Name| Location|              Year|Kilometers_Driven|Fuel_Type|Transmission|Owner_Type| Mileage| Engine|   Power|             Seats| New_Price|             label|               age|       mileage_aux|        engine_aux|        power_aux|
++-------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+------------------+------------------+------------------+-----------------+
+|  count|                6019|     6019|              6019|             6019|     6019|        6019|      6019|    6019|   6019|    6019|              6019|       824|              6019|              6019|              6019|              6019|             6019|
+|   mean|                null|     null|2013.3581990363848|58738.38029573019|     null|        null|      null|    null|   null|    null|5.2767901644791495|      null| 9.479468350224273| 7.641800963615219|18.135215152018656|1618.7388270476824|112.3204718391751|
+| stddev|                null|     null|  3.26974211609139|91268.84320624865|     null|        null|      null|    null|   null|    null|0.8063460892297473|      null|11.187917112455484|3.2697421160913938| 4.581548857057788| 600.4458584135865|53.56569974837497|
+|    min|Ambassador Classi...|Ahmedabad|              1998|              171|      CNG|   Automatic|     First|0.0 kmpl|1047 CC| 100 bhp|               0.0|      1 Cr|              0.44|               2.0|               0.0|              72.0|             34.2|
+|    max|Volvo XC90 2007-2...|     Pune|              2019|          6500000|   Petrol|      Manual|     Third|9.9 kmpl| 999 CC|99.6 bhp|              10.0|99.92 Lakh|             160.0|              23.0|             33.54|            5998.0|            560.0|
++-------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+------------------+------------------+------------------+-----------------+
+
+df2.groupBy("Location").count.show
++----------+-----+
+|  Location|count|
++----------+-----+
+| Bangalore|  358|
+|     Kochi|  651|
+|   Chennai|  494|
+|    Mumbai|  790|
+| Ahmedabad|  224|
+|   Kolkata|  535|
+|      Pune|  622|
+|     Delhi|  554|
+|Coimbatore|  636|
+| Hyderabad|  742|
+|    Jaipur|  413|
++----------+-----+
+
+df2.groupBy("Fuel_Type").count.show
++---------+-----+
+|Fuel_Type|count|
++---------+-----+
+|   Diesel| 3205|
+|      CNG|   56|
+| Electric|    2|
+|      LPG|   10|
+|   Petrol| 2746|
++---------+-----+
+
+df2.groupBy("Transmission").count.show
++------------+-----+
+|Transmission|count|
++------------+-----+
+|   Automatic| 1720|
+|      Manual| 4299|
++------------+-----+
+
+df2.groupBy("Owner_Type").count.show
++--------------+-----+
+|    Owner_Type|count|
++--------------+-----+
+|         First| 4929|
+|        Second|  968|
+|Fourth & Above|    9|
+|         Third|  113|
++--------------+-----+
+
+import org.apache.spark.ml.feature.{StringIndexer, VectorAssembler}
+
+val dfInd1 = new StringIndexer().setInputCol("Location").setOutputCol("LocationCat").setHandleInvalid("skip")
+val dfInd2 = new StringIndexer().setInputCol("Fuel_Type").setOutputCol("Fuel_TypeCat").setHandleInvalid("skip")
+val dfInd3 = new StringIndexer().setInputCol("Transmission").setOutputCol("TransmissionCat").setHandleInvalid("skip")
+val dfInd4 = new StringIndexer().setInputCol("Owner_Type").setOutputCol("Owner_TypeCat").setHandleInvalid("skip")
+
+val va = new VectorAssembler().setOutputCol("features").setInputCols(Array("Kilometers_Driven","Seats","age","mileage_aux","engine_aux","power_aux", "Fuel_TypeCat","TransmissionCat","Owner_TypeCat","LocationCat"))
+
+import org.apache.spark.ml.Pipeline
+val pipeline = new Pipeline().setStages(Array(dfInd1,dfInd2,dfInd3,dfInd4,va))
+
+val df3 = pipeline.fit(df2).transform(df2)
+
+df3.printSchema
+root
+ |-- Name: string (nullable = true)
+ |-- Location: string (nullable = true)
+ |-- Year: integer (nullable = true)
+ |-- Kilometers_Driven: integer (nullable = true)
+ |-- Fuel_Type: string (nullable = true)
+ |-- Transmission: string (nullable = true)
+ |-- Owner_Type: string (nullable = true)
+ |-- Mileage: string (nullable = false)
+ |-- Engine: string (nullable = false)
+ |-- Power: string (nullable = false)
+ |-- Seats: double (nullable = false)
+ |-- New_Price: string (nullable = true)
+ |-- label: double (nullable = true)
+ |-- age: double (nullable = true)
+ |-- mileage_aux: double (nullable = true)
+ |-- engine_aux: double (nullable = true)
+ |-- power_aux: double (nullable = true)
+ |-- LocationCat: double (nullable = false)
+ |-- Fuel_TypeCat: double (nullable = false)
+ |-- TransmissionCat: double (nullable = false)
+ |-- Owner_TypeCat: double (nullable = false)
+ |-- features: vector (nullable = true)]
+ 
+df3.show(10)
++--------------------+----------+----+-----------------+---------+------------+----------+----------+-------+---------+-----+---------+-----+----+-----------+----------+---------+-----------+------------+---------------+-------------+--------------------+
+|                Name|  Location|Year|Kilometers_Driven|Fuel_Type|Transmission|Owner_Type|   Mileage| Engine|    Power|Seats|New_Price|label| age|mileage_aux|engine_aux|power_aux|LocationCat|Fuel_TypeCat|TransmissionCat|Owner_TypeCat|            features|
++--------------------+----------+----+-----------------+---------+------------+----------+----------+-------+---------+-----+---------+-----+----+-----------+----------+---------+-----------+------------+---------------+-------------+--------------------+
+|Maruti Wagon R LX...|    Mumbai|2010|            72000|      CNG|      Manual|     First|26.6 km/kg| 998 CC|58.16 bhp|  5.0|     null| 1.75|11.0|       26.6|     998.0|    58.16|        0.0|         2.0|            0.0|          0.0|[72000.0,5.0,11.0...|
+|Hyundai Creta 1.6...|      Pune|2015|            41000|   Diesel|      Manual|     First|19.67 kmpl|1582 CC|126.2 bhp|  5.0|     null| 12.5| 6.0|      19.67|    1582.0|    126.2|        4.0|         0.0|            0.0|          0.0|[41000.0,5.0,6.0,...|
+|        Honda Jazz V|   Chennai|2011|            46000|   Petrol|      Manual|     First| 18.2 kmpl|1199 CC| 88.7 bhp|  5.0|8.61 Lakh|  4.5|10.0|       18.2|    1199.0|     88.7|        7.0|         1.0|            0.0|          0.0|[46000.0,5.0,10.0...|
+|   Maruti Ertiga VDI|   Chennai|2012|            87000|   Diesel|      Manual|     First|20.77 kmpl|1248 CC|88.76 bhp|  7.0|     null|  6.0| 9.0|      20.77|    1248.0|    88.76|        7.0|         0.0|            0.0|          0.0|[87000.0,7.0,9.0,...|
+|Audi A4 New 2.0 T...|Coimbatore|2013|            40670|   Diesel|   Automatic|    Second| 15.2 kmpl|1968 CC|140.8 bhp|  5.0|     null|17.74| 8.0|       15.2|    1968.0|    140.8|        3.0|         0.0|            1.0|          1.0|[40670.0,5.0,8.0,...|
+|Hyundai EON LPG E...| Hyderabad|2012|            75000|      LPG|      Manual|     First|21.1 km/kg| 814 CC| 55.2 bhp|  5.0|     null| 2.35| 9.0|       21.1|     814.0|     55.2|        1.0|         3.0|            0.0|          0.0|[75000.0,5.0,9.0,...|
+|Nissan Micra Dies...|    Jaipur|2013|            86999|   Diesel|      Manual|     First|23.08 kmpl|1461 CC| 63.1 bhp|  5.0|     null|  3.5| 8.0|      23.08|    1461.0|     63.1|        8.0|         0.0|            0.0|          0.0|[86999.0,5.0,8.0,...|
+|Toyota Innova Cry...|    Mumbai|2016|            36000|   Diesel|   Automatic|     First|11.36 kmpl|2755 CC|171.5 bhp|  8.0|  21 Lakh| 17.5| 5.0|      11.36|    2755.0|    171.5|        0.0|         0.0|            1.0|          0.0|[36000.0,8.0,5.0,...|
+|Volkswagen Vento ...|      Pune|2013|            64430|   Diesel|      Manual|     First|20.54 kmpl|1598 CC|103.6 bhp|  5.0|     null|  5.2| 8.0|      20.54|    1598.0|    103.6|        4.0|         0.0|            0.0|          0.0|[64430.0,5.0,8.0,...|
+|Tata Indica Vista...|   Chennai|2012|            65932|   Diesel|      Manual|    Second| 22.3 kmpl|1248 CC|   74 bhp|  5.0|     null| 1.95| 9.0|       22.3|    1248.0|     74.0|        7.0|         0.0|            0.0|          1.0|[65932.0,5.0,9.0,...|
++--------------------+----------+----+-----------------+---------+------------+----------+----------+-------+---------+-----+---------+-----+----+-----------+----------+---------+-----------+------------+---------------+-------------+--------------------+
+only showing top 10 rows
+
+
+// ----- building the decision tree model
+
+import org.apache.spark.ml.regression.DecisionTreeRegressor
+val dt = new DecisionTreeRegressor
+dt.setMaxDepth(7).setMaxBins(32).setFeaturesCol("features")
+
+import org.apache.spark.ml.Pipeline
+
+val pipeline = new Pipeline().setStages(Array(dfInd1,dfInd2,dfInd3,dfInd4,va,dt))
+
+val Array(trainingData, testData) = df2.randomSplit(Array(0.7,0.3),11L)
+
+trainingData.cache
+testData.cache
+
+val model = pipeline.fit(trainingData)
+
+val pred = model.transform(testData)
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+val bceval = new RegressionEvaluator()
+
+bceval.setMetricName("rmse").evaluate(pred)
+res10: Double = 4.994140806678395
+
+bceval.setMetricName("r2").evaluate(pred)
+res11: Double = 0.818872196529436
+
+import org.apache.spark.ml.regression.DecisionTreeRegressionModel
+val dtmodel = model.stages(5).asInstanceOf[DecisionTreeRegressionModel]
+
+dtmodel.toDebugString
+res12: String =
+"DecisionTreeRegressionModel (uid=dtr_f26d1c1fc59a) of depth 7 with 233 nodes
+  If (feature 5 <= 157.775)
+   If (feature 4 <= 1962.0)
+    If (feature 2 <= 7.5)
+     If (feature 5 <= 103.56)
+      If (feature 5 <= 73.985)
+       If (feature 5 <= 69.505)
+        If (feature 6 in {0.0,1.0,2.0})
+         Predict: 3.6128671328671333
+        Else (feature 6 not in {0.0,1.0,2.0})
+         Predict: 13.0
+       Else (feature 5 > 69.505)
+        If (feature 3 <= 26.15)
+         Predict: 4.671744186046511
+        Else (feature 3 > 26.15)
+         Predict: 7.519999999999998
+      Else (feature 5 > 73.985)
+       If (feature 2 <= 5.5)
+        If (feature 5 <= 86.73)
+         Predict: 6.1822932330827065
+        Else (feature 5 > 86.73)
+         Predict: 7.7176984126984145
+       Else ...
+
+-------------------
+
+import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
+
+val paramGrid = new ParamGridBuilder().
+addGrid(dt.maxDepth, Array(7, 10, 20)).
+addGrid(dt.maxBins, Array(16, 32, 48)).build()
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+
+val cv = new CrossValidator().
+setEstimator(pipeline).
+setEvaluator(new RegressionEvaluator).
+setEstimatorParamMaps(paramGrid).
+setNumFolds(3)
+
+val model = cv.fit(trainingData)
+
+import org.apache.spark.ml.PipelineModel
+val bestmodel = model.bestModel.asInstanceOf[PipelineModel]
+
+import org.apache.spark.ml.regression.DecisionTreeRegressionModel
+val dtmodel = bestmodel.stages(5).asInstanceOf[DecisionTreeRegressionModel]
+
+dtmodel.getMaxDepth
+res9: Int = 7
+
+dtmodel.getMaxBins
+res10: Int = 16
+
+val pred = bestmodel.transform(testData)
+
+val bceval = new RegressionEvaluator()
+
+bceval.setMetricName("rmse").evaluate(pred)
+res15: Double = 5.260083237075163
+
+bceval.setMetricName("r2").evaluate(pred)
+res16: Double = 0.7990681476198392
+
+dtmodel.toDebugString
+res17: String =
+"DecisionTreeRegressionModel (uid=dtr_f26d1c1fc59a) of depth 7 with 233 nodes
+  If (feature 5 <= 157.775)
+   If (feature 5 <= 120.35)
+    If (feature 2 <= 7.5)
+     If (feature 5 <= 100.3)
+      If (feature 5 <= 73.92)
+       If (feature 6 in {1.0,2.0})
+        If (feature 4 <= 996.5)
+         Predict: 3.0437500000000006
+        Else (feature 4 > 996.5)
+         Predict: 3.9672151898734183
+       Else (feature 6 not in {1.0,2.0})
+        If (feature 7 in {0.0})
+         Predict: 4.628846153846155
+        Else (feature 7 not in {0.0})
+         Predict: 9.879999999999995
+      Else (feature 5 > 73.92)
+       If (feature 2 <= 5.5)
+        If (feature 4 <= 1220.5)
+         Predict: 6.158659003831419
+        Else (feature 4 > 1220.5)
+         Predict: 7.5499206349206345
+     ...
