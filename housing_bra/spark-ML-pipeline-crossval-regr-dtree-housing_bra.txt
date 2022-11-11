@@ -1,5 +1,7 @@
 
-val df = spark.read.format("json").load("imoveis/imoveis.json")
+val df = spark.read.json("imoveis.json")
+
+spark.conf.set("spark.sql.shuffle.partitions",6)
 
 df.printSchema
 root
@@ -33,7 +35,7 @@ root
  |    |    |-- unit: string (nullable = true)
  |    |    |-- usage: string (nullable = true)
  
-df.show(10, false)
+df.show(10,false)
 +--------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+
 |ident                     |listing                                                                                                                                                          |
 +--------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -50,277 +52,162 @@ df.show(10, false)
 +--------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+
 only showing top 10 rows
 
-
-df.select("ident.customerID", "listing.*").show(10, false)
-+---------------+--------------------------------------------------------------------------------+-------------------------------+-------------------+--------------------------+
-|customerID     |address                                                                         |features                       |prices             |types                     |
-+---------------+--------------------------------------------------------------------------------+-------------------------------+-------------------+--------------------------+
-|775564-BOJSMVON|[Rio de Janeiro, [-22.909429, -43.413557], Taquara, Zona Oeste]                 |[0, 0, 0, 1, 0, 62, 0, 0, 62]  |[45000, [150, 0]]  |[Outros, Residencial]     |
-|660895-AUENKNYY|[Rio de Janeiro, [-22.869698, -43.509141], Santíssimo, Zona Oeste]              |[1, 2, 0, 1, 0, 0, 0, 0, 44]   |[45000, [120, 0]]  |[Apartamento, Residencial]|
-|751522-JESYFEQL|[Rio de Janeiro, [-22.986927, -43.646786], Pedra de Guaratiba, Zona Oeste]      |[0, 0, 0, 0, 0, 132, 0, 0, 132]|[50000, [100, 0]]  |[Outros, Residencial]     |
-|714052-GAAEWYKS|[Rio de Janeiro, [-22.881977, -43.330818], Cascadura, Zona Norte]               |[1, 0, 0, 0, 0, 32, 3, 0, 32]  |[45000, [468, 346]]|[Outros, Comercial]       |
-|568886-ZIBFOMCC|[Rio de Janeiro, [-23.027653, -43.480742], Recreio dos Bandeirantes, Zona Oeste]|[2, 3, 3, 1, 1, 0, 2, 4, 60]   |[50000, [400, 120]]|[Apartamento, Residencial]|
-|526755-OBLTYTEN|[Rio de Janeiro, [-22.966059, -43.571183], Guaratiba, Zona Oeste]               |[0, 0, 0, 0, 0, 200, 0, 0, 200]|[50000, [0,]]      |[Outros, Residencial]     |
-|593569-CJLMNFGW|[Rio de Janeiro, [-22.939028, -43.3453], Freguesia (Jacarepaguá), Zona Oeste]   |[1, 0, 0, 0, 0, 25, 2, 0, 25]  |[50000, [801, 211]]|[Outros, Comercial]       |
-|989181-RYJOLMCU|[Rio de Janeiro, [-22.841509, -43.278855], Penha, Zona Norte]                   |[1, 0, 0, 0, 0, 23, 0, 0, 23]  |[50000, [230,]]    |[Outros, Comercial]       |
-|145372-EZKAKSWM|[Rio de Janeiro, [-22.835609, -43.392253], Ricardo de Albuquerque, Zona Norte]  |[0, 0, 0, 0, 0, 60, 0, 0, 60]  |[45000, [,]]       |[Outros, Comercial]       |
-|792086-NWNQTDYL|[Rio de Janeiro, [-22.885306, -43.253044], Jacarezinho, Zona Norte]             |[1, 1, 0, 1, 0, 35, 0, 0, 33]  |[45336, [0, 0]]    |[Apartamento, Residencial]|
-+---------------+--------------------------------------------------------------------------------+-------------------------------+-------------------+--------------------------+
+df.select("listing.address.city","listing.address.zone","listing.features.*","listing.prices.price","listing.types.*").show(10)
++--------------+----------+---------+--------+------+-------------+------+----------+---------+---------------+-----------+-----+-----------+-----------+
+|          city|      zone|bathrooms|bedrooms|floors|parkingSpaces|suites|totalAreas|unitFloor|unitsOnTheFloor|usableAreas|price|       unit|      usage|
++--------------+----------+---------+--------+------+-------------+------+----------+---------+---------------+-----------+-----+-----------+-----------+
+|Rio de Janeiro|Zona Oeste|        0|       0|     0|            1|     0|        62|        0|              0|         62|45000|     Outros|Residencial|
+|Rio de Janeiro|Zona Oeste|        1|       2|     0|            1|     0|         0|        0|              0|         44|45000|Apartamento|Residencial|
+|Rio de Janeiro|Zona Oeste|        0|       0|     0|            0|     0|       132|        0|              0|        132|50000|     Outros|Residencial|
+|Rio de Janeiro|Zona Norte|        1|       0|     0|            0|     0|        32|        3|              0|         32|45000|     Outros|  Comercial|
+|Rio de Janeiro|Zona Oeste|        2|       3|     3|            1|     1|         0|        2|              4|         60|50000|Apartamento|Residencial|
+|Rio de Janeiro|Zona Oeste|        0|       0|     0|            0|     0|       200|        0|              0|        200|50000|     Outros|Residencial|
+|Rio de Janeiro|Zona Oeste|        1|       0|     0|            0|     0|        25|        2|              0|         25|50000|     Outros|  Comercial|
+|Rio de Janeiro|Zona Norte|        1|       0|     0|            0|     0|        23|        0|              0|         23|50000|     Outros|  Comercial|
+|Rio de Janeiro|Zona Norte|        0|       0|     0|            0|     0|        60|        0|              0|         60|45000|     Outros|  Comercial|
+|Rio de Janeiro|Zona Norte|        1|       1|     0|            1|     0|        35|        0|              0|         33|45336|Apartamento|Residencial|
++--------------+----------+---------+--------+------+-------------+------+----------+---------+---------------+-----------+-----+-----------+-----------+
 only showing top 10 rows
 
+val df1 = df.select("listing.address.city","listing.address.zone","listing.features.*","listing.prices.price","listing.types.*")
 
-df.select("ident.customerID", "listing.address.*", "listing.features.*", "listing.prices.*", "listing.types.*").show(10, false)
-+---------------+--------------+------------------------+------------------------+----------+---------+--------+------+-------------+------+----------+---------+---------------+-----------+-----+----------+-----------+-----------+
-|customerID     |city          |location                |neighborhood            |zone      |bathrooms|bedrooms|floors|parkingSpaces|suites|totalAreas|unitFloor|unitsOnTheFloor|usableAreas|price|tax       |unit       |usage      |
-+---------------+--------------+------------------------+------------------------+----------+---------+--------+------+-------------+------+----------+---------+---------------+-----------+-----+----------+-----------+-----------+
-|775564-BOJSMVON|Rio de Janeiro|[-22.909429, -43.413557]|Taquara                 |Zona Oeste|0        |0       |0     |1            |0     |62        |0        |0              |62         |45000|[150, 0]  |Outros     |Residencial|
-|660895-AUENKNYY|Rio de Janeiro|[-22.869698, -43.509141]|Santíssimo              |Zona Oeste|1        |2       |0     |1            |0     |0         |0        |0              |44         |45000|[120, 0]  |Apartamento|Residencial|
-|751522-JESYFEQL|Rio de Janeiro|[-22.986927, -43.646786]|Pedra de Guaratiba      |Zona Oeste|0        |0       |0     |0            |0     |132       |0        |0              |132        |50000|[100, 0]  |Outros     |Residencial|
-|714052-GAAEWYKS|Rio de Janeiro|[-22.881977, -43.330818]|Cascadura               |Zona Norte|1        |0       |0     |0            |0     |32        |3        |0              |32         |45000|[468, 346]|Outros     |Comercial  |
-|568886-ZIBFOMCC|Rio de Janeiro|[-23.027653, -43.480742]|Recreio dos Bandeirantes|Zona Oeste|2        |3       |3     |1            |1     |0         |2        |4              |60         |50000|[400, 120]|Apartamento|Residencial|
-|526755-OBLTYTEN|Rio de Janeiro|[-22.966059, -43.571183]|Guaratiba               |Zona Oeste|0        |0       |0     |0            |0     |200       |0        |0              |200        |50000|[0,]      |Outros     |Residencial|
-|593569-CJLMNFGW|Rio de Janeiro|[-22.939028, -43.3453]  |Freguesia (Jacarepaguá) |Zona Oeste|1        |0       |0     |0            |0     |25        |2        |0              |25         |50000|[801, 211]|Outros     |Comercial  |
-|989181-RYJOLMCU|Rio de Janeiro|[-22.841509, -43.278855]|Penha                   |Zona Norte|1        |0       |0     |0            |0     |23        |0        |0              |23         |50000|[230,]    |Outros     |Comercial  |
-|145372-EZKAKSWM|Rio de Janeiro|[-22.835609, -43.392253]|Ricardo de Albuquerque  |Zona Norte|0        |0       |0     |0            |0     |60        |0        |0              |60         |45000|[,]       |Outros     |Comercial  |
-|792086-NWNQTDYL|Rio de Janeiro|[-22.885306, -43.253044]|Jacarezinho             |Zona Norte|1        |1       |0     |1            |0     |35        |0        |0              |33         |45336|[0, 0]    |Apartamento|Residencial|
-+---------------+--------------+------------------------+------------------------+----------+---------+--------+------+-------------+------+----------+---------+---------------+-----------+-----+----------+-----------+-----------+
-only showing top 10 rows
-
-
-val df1 = df.select("ident.customerID", "listing.address.*", "listing.features.*", "listing.prices.*", "listing.types.*").
-          drop("city", "location", "tax", "totalAreas")
-		  
 df1.printSchema
 root
- |-- customerID: string (nullable = true)
- |-- neighborhood: string (nullable = true)
+ |-- city: string (nullable = true)
  |-- zone: string (nullable = true)
  |-- bathrooms: long (nullable = true)
  |-- bedrooms: long (nullable = true)
  |-- floors: long (nullable = true)
  |-- parkingSpaces: long (nullable = true)
  |-- suites: long (nullable = true)
+ |-- totalAreas: string (nullable = true)
  |-- unitFloor: long (nullable = true)
  |-- unitsOnTheFloor: long (nullable = true)
  |-- usableAreas: string (nullable = true)
  |-- price: string (nullable = true)
  |-- unit: string (nullable = true)
  |-- usage: string (nullable = true)
+ 
+df1.groupBy("city","zone").count.orderBy("city","zone").show
++------------------+------------+-----+
+|              city|        zone|count|
++------------------+------------+-----+
+|Armação dos Búzios|            |    1|
+|      Cachoeirinha|            |    1|
+|         Queimados|            |    3|
+|    Rio de Janeiro|            |  157|
+|    Rio de Janeiro|Zona Central| 1921|
+|    Rio de Janeiro|  Zona Norte|15191|
+|    Rio de Janeiro|  Zona Oeste|37116|
+|    Rio de Janeiro|    Zona Sul|19222|
+|       São Gonçalo|            |    2|
+|São João de Meriti|            |    1|
++------------------+------------+-----+
 
-df1.show(10, false)
-+---------------+------------------------+----------+---------+--------+------+-------------+------+---------+---------------+-----------+-----+-----------+-----------+
-|customerID     |neighborhood            |zone      |bathrooms|bedrooms|floors|parkingSpaces|suites|unitFloor|unitsOnTheFloor|usableAreas|price|unit       |usage      |
-+---------------+------------------------+----------+---------+--------+------+-------------+------+---------+---------------+-----------+-----+-----------+-----------+
-|775564-BOJSMVON|Taquara                 |Zona Oeste|0        |0       |0     |1            |0     |0        |0              |62         |45000|Outros     |Residencial|
-|660895-AUENKNYY|Santíssimo              |Zona Oeste|1        |2       |0     |1            |0     |0        |0              |44         |45000|Apartamento|Residencial|
-|751522-JESYFEQL|Pedra de Guaratiba      |Zona Oeste|0        |0       |0     |0            |0     |0        |0              |132        |50000|Outros     |Residencial|
-|714052-GAAEWYKS|Cascadura               |Zona Norte|1        |0       |0     |0            |0     |3        |0              |32         |45000|Outros     |Comercial  |
-|568886-ZIBFOMCC|Recreio dos Bandeirantes|Zona Oeste|2        |3       |3     |1            |1     |2        |4              |60         |50000|Apartamento|Residencial|
-|526755-OBLTYTEN|Guaratiba               |Zona Oeste|0        |0       |0     |0            |0     |0        |0              |200        |50000|Outros     |Residencial|
-|593569-CJLMNFGW|Freguesia (Jacarepaguá) |Zona Oeste|1        |0       |0     |0            |0     |2        |0              |25         |50000|Outros     |Comercial  |
-|989181-RYJOLMCU|Penha                   |Zona Norte|1        |0       |0     |0            |0     |0        |0              |23         |50000|Outros     |Comercial  |
-|145372-EZKAKSWM|Ricardo de Albuquerque  |Zona Norte|0        |0       |0     |0            |0     |0        |0              |60         |45000|Outros     |Comercial  |
-|792086-NWNQTDYL|Jacarezinho             |Zona Norte|1        |1       |0     |1            |0     |0        |0              |33         |45336|Apartamento|Residencial|
-+---------------+------------------------+----------+---------+--------+------+-------------+------+---------+---------------+-----------+-----+-----------+-----------+
-only showing top 10 rows
+df1.groupBy("unit","usage").count.orderBy("unit","usage").show
++-----------+-----------+-----+
+|       unit|      usage|count|
++-----------+-----------+-----+
+|Apartamento|Residencial|59106|
+|       Casa|  Comercial|   89|
+|       Casa|Residencial| 9300|
+|     Outros|  Comercial| 3930|
+|     Outros|Residencial| 1190|
++-----------+-----------+-----+
 
-
-df1.describe().show
-+-------+---------------+--------------------+--------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+-----------+-----------+
-|summary|     customerID|        neighborhood|    zone|         bathrooms|          bedrooms|            floors|     parkingSpaces|            suites|         unitFloor|   unitsOnTheFloor|       usableAreas|             price|       unit|      usage|
-+-------+---------------+--------------------+--------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+-----------+-----------+
-|  count|          73615|               73615|   73615|             73615|             73615|             73615|             73615|             73615|             73615|             73615|             73615|             73615|      73615|      73615|
-|   mean|           null|                null|    null| 2.372396929973511|2.5739726957821096|1.9319432180941385|1.4089112273313862|1.0746586972763703|1.4935135502275352|1.2205121238877945|141.54435916593084|1210759.3738232697|       null|       null|
-| stddev|           null|                null|    null|1.5335566495971622|1.2810913473064494| 4.528961565493774|1.7273581137467433|1.1773235036359209|13.117323714945186| 3.413755491536239|146.73695217489413|1384724.6534532323|       null|       null|
-|    min|000002-EJVWXGWN|            Abolição|        |                 0|                 0|                 0|                 0|                 0|                 0|                 0|                 0|            100000|Apartamento|  Comercial|
-|    max|999985-GKNJELHM|Área Rural de Rio...|Zona Sul|                49|                50|                50|               180|                50|              1234|                76|               999|           9999999|     Outros|Residencial|
-+-------+---------------+--------------------+--------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+-----------+-----------+
-
-df1.groupBy("usage").count.show
-+-----------+-----+
-|      usage|count|
-+-----------+-----+
-|  Comercial| 4019|
-|Residencial|69596|
-+-----------+-----+
-
-// consider only residential
 
 import org.apache.spark.sql.types._
 
-val df2 = df1.where('usage === "Residencial").
-          withColumn("usableAreas", 'usableAreas.cast(LongType)).
-          withColumn("price", 'price.cast(DoubleType))
-		  
+val df2 = df1.where('city === "Rio de Janeiro").withColumn("label", 'price.cast(DoubleType)).withColumn("usableAreas", 'usableAreas.cast(DoubleType))
+
 df2.printSchema
 root
- |-- customerID: string (nullable = true)
- |-- neighborhood: string (nullable = true)
+ |-- city: string (nullable = true)
  |-- zone: string (nullable = true)
  |-- bathrooms: long (nullable = true)
  |-- bedrooms: long (nullable = true)
  |-- floors: long (nullable = true)
  |-- parkingSpaces: long (nullable = true)
  |-- suites: long (nullable = true)
+ |-- totalAreas: string (nullable = true)
  |-- unitFloor: long (nullable = true)
  |-- unitsOnTheFloor: long (nullable = true)
- |-- usableAreas: long (nullable = true)
- |-- price: double (nullable = true)
+ |-- usableAreas: double (nullable = true)
+ |-- price: string (nullable = true)
  |-- unit: string (nullable = true)
  |-- usage: string (nullable = true)
- 
-
-df2.groupBy("zone").count.show
-+------------+-----+
-|        zone|count|
-+------------+-----+
-|  Zona Norte|14379|
-|  Zona Oeste|35523|
-|Zona Central| 1002|
-|    Zona Sul|18535|
-|            |  157|
-+------------+-----+
-
-// remove records with zone not defined
-
-val df3 = df2.where('zone =!= "").drop("usage").
-             withColumnRenamed("price", "label")
-								 
-df3.printSchema
-root
- |-- customerID: string (nullable = true)
- |-- neighborhood: string (nullable = true)
- |-- zone: string (nullable = true)
- |-- bathrooms: long (nullable = true)
- |-- bedrooms: long (nullable = true)
- |-- floors: long (nullable = true)
- |-- parkingSpaces: long (nullable = true)
- |-- suites: long (nullable = true)
- |-- unitFloor: long (nullable = true)
- |-- unitsOnTheFloor: long (nullable = true)
- |-- usableAreas: long (nullable = true)
  |-- label: double (nullable = true)
- |-- unit: string (nullable = true)
-
  
-df3.groupBy("unit").count.show
-+-----------+-----+
-|       unit|count|
-+-----------+-----+
-|     Outros| 1186|
-|Apartamento|58980|
-|       Casa| 9273|
-+-----------+-----+
 
+import org.apache.spark.ml.feature.{StringIndexer, OneHotEncoder, VectorAssembler}
 
-import org.apache.spark.ml.feature.{StringIndexer, VectorAssembler}
+val stridx1 = new StringIndexer().setInputCol("unit").setOutputCol("unitIdx")
+val stridx2 = new StringIndexer().setInputCol("usage").setOutputCol("usageIdx")
+val stridx3 = new StringIndexer().setInputCol("zone").setOutputCol("zoneIdx")
 
-val dfrawIndexer1 = new StringIndexer().setInputCol("unit").setOutputCol("unitCat")
-val dfrawIndexer2 = new StringIndexer().setInputCol("zone").setOutputCol("zoneCat")
-
-val va = new VectorAssembler().setOutputCol("features").setInputCols(Array("bathrooms","bedrooms","floors","parkingSpaces","suites","unitFloor","unitsOnTheFloor","usableAreas","unitCat","zoneCat"))
+val va = new VectorAssembler().setOutputCol("features").setInputCols(Array("zoneIdx","bathrooms","bedrooms","floors","parkingSpaces","suites","unitFloor","unitsOnTheFloor","usableAreas","unitIdx","usageIdx"))
 
 import org.apache.spark.ml.Pipeline
-val pipeline = new Pipeline().setStages(Array(dfrawIndexer1,dfrawIndexer2,va))
+val pipeline = new Pipeline().setStages(Array(stridx1,stridx2,stridx3,va))
 
-val df4 = pipeline.fit(df3).transform(df3)
+val df3 = pipeline.fit(df2).transform(df2)
 
-df4.printSchema
+df3.printSchema
 root
- |-- customerID: string (nullable = true)
- |-- neighborhood: string (nullable = true)
+ |-- city: string (nullable = true)
  |-- zone: string (nullable = true)
  |-- bathrooms: long (nullable = true)
  |-- bedrooms: long (nullable = true)
  |-- floors: long (nullable = true)
  |-- parkingSpaces: long (nullable = true)
  |-- suites: long (nullable = true)
+ |-- totalAreas: string (nullable = true)
  |-- unitFloor: long (nullable = true)
  |-- unitsOnTheFloor: long (nullable = true)
- |-- usableAreas: long (nullable = true)
- |-- label: double (nullable = true)
+ |-- usableAreas: double (nullable = true)
+ |-- price: string (nullable = true)
  |-- unit: string (nullable = true)
- |-- unitCat: double (nullable = false)
- |-- zoneCat: double (nullable = false)
+ |-- usage: string (nullable = true)
+ |-- label: double (nullable = true)
+ |-- unitIdx: double (nullable = false)
+ |-- usageIdx: double (nullable = false)
+ |-- zoneIdx: double (nullable = false)
  |-- features: vector (nullable = true)
- 
-df4.show(10)
-+---------------+--------------------+----------+---------+--------+------+-------------+------+---------+---------------+-----------+-------+-----------+-------+-------+--------------------+
-|     customerID|        neighborhood|      zone|bathrooms|bedrooms|floors|parkingSpaces|suites|unitFloor|unitsOnTheFloor|usableAreas|  label|       unit|unitCat|zoneCat|            features|
-+---------------+--------------------+----------+---------+--------+------+-------------+------+---------+---------------+-----------+-------+-----------+-------+-------+--------------------+
-|775564-BOJSMVON|             Taquara|Zona Oeste|        0|       0|     0|            1|     0|        0|              0|         62|45000.0|     Outros|    2.0|    0.0|(10,[3,7,8],[1.0,...|
-|660895-AUENKNYY|          Sant?ssimo|Zona Oeste|        1|       2|     0|            1|     0|        0|              0|         44|45000.0|Apartamento|    0.0|    0.0|(10,[0,1,3,7],[1....|
-|751522-JESYFEQL|  Pedra de Guaratiba|Zona Oeste|        0|       0|     0|            0|     0|        0|              0|        132|50000.0|     Outros|    2.0|    0.0|(10,[7,8],[132.0,...|
-|568886-ZIBFOMCC|Recreio dos Bande...|Zona Oeste|        2|       3|     3|            1|     1|        2|              4|         60|50000.0|Apartamento|    0.0|    0.0|[2.0,3.0,3.0,1.0,...|
-|526755-OBLTYTEN|           Guaratiba|Zona Oeste|        0|       0|     0|            0|     0|        0|              0|        200|50000.0|     Outros|    2.0|    0.0|(10,[7,8],[200.0,...|
-|792086-NWNQTDYL|         Jacarezinho|Zona Norte|        1|       1|     0|            1|     0|        0|              0|         33|45336.0|Apartamento|    0.0|    2.0|(10,[0,1,3,7,9],[...|
-|339622-MNZGLKTZ|           Guaratiba|Zona Oeste|        0|       0|     0|            0|     0|        0|              0|        120|45000.0|     Outros|    2.0|    0.0|(10,[7,8],[120.0,...|
-|952338-SVULQMXR|          Santa Cruz|Zona Oeste|        0|       0|     0|            0|     0|        0|              0|        468|45000.0|     Outros|    2.0|    0.0|(10,[7,8],[468.0,...|
-|570439-LDICQOXZ|       Vargem Grande|Zona Oeste|        0|       0|     0|            0|     0|        1|              0|        180|50000.0|     Outros|    2.0|    0.0|(10,[5,7,8],[1.0,...|
-|684023-YTBNKLLO|               Bangu|Zona Oeste|        0|       0|     0|            0|     0|        0|              0|        128|50000.0|     Outros|    2.0|    0.0|(10,[7,8],[128.0,...|
-+---------------+--------------------+----------+---------+--------+------+-------------+------+---------+---------------+-----------+-------+-----------+-------+-------+--------------------+
-only showing top 10 rows
 
+ 
+df3.select("label","features").show(10,false)
++-------+----------------------------------------------+
+|label  |features                                      |
++-------+----------------------------------------------+
+|45000.0|(11,[4,8,9],[1.0,62.0,2.0])                   |
+|45000.0|(11,[1,2,4,8],[1.0,2.0,1.0,44.0])             |
+|50000.0|(11,[8,9],[132.0,2.0])                        |
+|45000.0|(11,[0,1,6,8,9,10],[2.0,1.0,3.0,32.0,2.0,1.0])|
+|50000.0|[0.0,2.0,3.0,3.0,1.0,1.0,2.0,4.0,60.0,0.0,0.0]|
+|50000.0|(11,[8,9],[200.0,2.0])                        |
+|50000.0|(11,[1,6,8,9,10],[1.0,2.0,25.0,2.0,1.0])      |
+|50000.0|(11,[0,1,8,9,10],[2.0,1.0,23.0,2.0,1.0])      |
+|45000.0|(11,[0,8,9,10],[2.0,60.0,2.0,1.0])            |
+|45336.0|(11,[0,1,2,4,8],[2.0,1.0,1.0,1.0,33.0])       |
++-------+----------------------------------------------+
+only showing top 10 rows
 
 // ----- building the decision tree model
 
 import org.apache.spark.ml.regression.DecisionTreeRegressor
 val dt = new DecisionTreeRegressor
-dt.setMaxDepth(7).setMaxBins(32).setFeaturesCol("features")
+dt.setFeaturesCol("features")
 
 import org.apache.spark.ml.Pipeline
 
-val pipeline = new Pipeline().setStages(Array(dfrawIndexer1,dfrawIndexer2,va,dt))
+val pipeline = new Pipeline().setStages(Array(stridx1,stridx2,stridx3,va,dt))
 
-val Array(trainingData, testData) = df3.randomSplit(Array(0.7,0.3),11L)
+val Array(trainingData, testData) = df2.randomSplit(Array(0.7,0.3),11L)
 
 trainingData.cache
 testData.cache
 
-val model = pipeline.fit(trainingData)
-
-val pred = model.transform(testData)
-
-import org.apache.spark.ml.evaluation.RegressionEvaluator
-val bceval = new RegressionEvaluator()
-
-bceval.setMetricName("rmse").evaluate(pred)
-res6: Double = 706186.4899821565
-
-bceval.setMetricName("r2").evaluate(pred)
-res7: Double = 0.7414836723627033
-
-import org.apache.spark.ml.regression.DecisionTreeRegressionModel
-val dtmodel = model.stages(3).asInstanceOf[DecisionTreeRegressionModel]
-
-dtmodel.toDebugString
-res8: String =
-"DecisionTreeRegressionModel (uid=dtr_f7c5cd67085e) of depth 7 with 253 nodes
-  If (feature 7 <= 192.5)
-   If (feature 7 <= 99.5)
-    If (feature 9 in {0.0,2.0,3.0})
-     If (feature 7 <= 67.5)
-      If (feature 4 <= 0.5)
-       If (feature 0 <= 0.5)
-        If (feature 7 <= 38.5)
-         Predict: 1403477.7777777778
-        Else (feature 7 > 38.5)
-         Predict: 247857.14285714287
-       Else (feature 0 > 0.5)
-        If (feature 7 <= 50.5)
-         Predict: 231684.2996062992
-        Else (feature 7 > 50.5)
-         Predict: 290338.41476274165
-      Else (feature 4 > 0.5)
-       If (feature 1 <= 3.5)
-        If (feature 7 <= 60.5)
-         Predict: 346220.2423571112
-        Else (feature 7 > 60.5)
-         Predict: 447003.52121212124
-       Else (feature 1 > 3.5)
-    ...
-
--------------------
+// ----- find best decision tree model
 
 import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
 
@@ -342,47 +229,61 @@ import org.apache.spark.ml.PipelineModel
 val bestmodel = model.bestModel.asInstanceOf[PipelineModel]
 
 import org.apache.spark.ml.regression.DecisionTreeRegressionModel
-val dtmodel = bestmodel.stages(3).asInstanceOf[DecisionTreeRegressionModel]
+val dtmodel = bestmodel.stages(4).asInstanceOf[DecisionTreeRegressionModel]
+
+// -----  metrics extracted from model
 
 dtmodel.getMaxDepth
 res9: Int = 7
 
 dtmodel.getMaxBins
-res10: Int = 48
+res10: Int = 32
+
+val pred = bestmodel.transform(trainingData)
+
+val bceval = new RegressionEvaluator()
+
+bceval.setMetricName("rmse").evaluate(pred)
+res11: Double = 699716.8669432728
+
+bceval.setMetricName("r2").evaluate(pred)
+res12: Double = 0.7451263831536338
+
+dtmodel.toDebugString
+res8: String =
+"DecisionTreeRegressionModel (uid=dtr_69a4a3b9c170) of depth 7 with 249 nodes
+  If (feature 8 <= 193.5)
+   If (feature 8 <= 96.5)
+    If (feature 0 in {0.0,2.0,3.0,4.0})
+     If (feature 8 <= 65.5)
+      If (feature 5 <= 0.5)
+       If (feature 1 <= 0.5)
+        If (feature 10 in {1.0})
+         Predict: 256076.63829787233
+        Else (feature 10 not in {1.0})
+         Predict: 1275433.3076923077
+       Else (feature 1 > 0.5)
+        If (feature 8 <= 50.5)
+         Predict: 230705.30048205677
+        Else (feature 8 > 50.5)
+         Predict: 293248.5455855856
+      Else (feature 5 > 0.5)
+       If (feature 2 <= 3.5)
+        If (feature 1 <= 3.5)
+         Predict: 377555.1539602492
+        Else (feature 1 > 3.5)
+         Predict: 1032195.7142857143
+       Else (feature 2 ...
+
+// -----  metrics on test data
 
 val pred = bestmodel.transform(testData)
 
 val bceval = new RegressionEvaluator()
 
 bceval.setMetricName("rmse").evaluate(pred)
-res11: Double = 696979.8900933359
+res11: Double = 717085.9989395953
 
 bceval.setMetricName("r2").evaluate(pred)
-res12: Double = 0.7481803224704793
+res12: Double = 0.7307271827313657
 
-dtmodel.toDebugString
-res14: String =
-"DecisionTreeRegressionModel (uid=dtr_f7c5cd67085e) of depth 7 with 253 nodes
-  If (feature 7 <= 206.5)
-   If (feature 7 <= 98.5)
-    If (feature 9 in {0.0,2.0,3.0})
-     If (feature 7 <= 67.5)
-      If (feature 4 <= 0.5)
-       If (feature 0 <= 0.5)
-        If (feature 7 <= 34.5)
-         Predict: 1403477.7777777778
-        Else (feature 7 > 34.5)
-         Predict: 247857.14285714287
-       Else (feature 0 > 0.5)
-        If (feature 7 <= 51.5)
-         Predict: 233552.68161094224
-        Else (feature 7 > 51.5)
-         Predict: 290512.2604431529
-      Else (feature 4 > 0.5)
-       If (feature 1 <= 3.5)
-        If (feature 7 <= 60.5)
-         Predict: 346220.2423571112
-        Else (feature 7 > 60.5)
-         Predict: 447003.52121212124
-       Else (feature 1 > 3.5)
-   ...

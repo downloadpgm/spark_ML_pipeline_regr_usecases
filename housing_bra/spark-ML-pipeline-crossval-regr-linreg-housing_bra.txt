@@ -1,5 +1,7 @@
 
-val df = spark.read.format("json").load("imoveis/imoveis.json")
+val df = spark.read.json("imoveis.json")
+
+spark.conf.set("spark.sql.shuffle.partitions",6)
 
 df.printSchema
 root
@@ -33,7 +35,7 @@ root
  |    |    |-- unit: string (nullable = true)
  |    |    |-- usage: string (nullable = true)
  
-df.show(10, false)
+df.show(10,false)
 +--------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+
 |ident                     |listing                                                                                                                                                          |
 +--------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -50,262 +52,172 @@ df.show(10, false)
 +--------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+
 only showing top 10 rows
 
-
-df.select("ident.customerID", "listing.*").show(10, false)
-+---------------+--------------------------------------------------------------------------------+-------------------------------+-------------------+--------------------------+
-|customerID     |address                                                                         |features                       |prices             |types                     |
-+---------------+--------------------------------------------------------------------------------+-------------------------------+-------------------+--------------------------+
-|775564-BOJSMVON|[Rio de Janeiro, [-22.909429, -43.413557], Taquara, Zona Oeste]                 |[0, 0, 0, 1, 0, 62, 0, 0, 62]  |[45000, [150, 0]]  |[Outros, Residencial]     |
-|660895-AUENKNYY|[Rio de Janeiro, [-22.869698, -43.509141], Santíssimo, Zona Oeste]              |[1, 2, 0, 1, 0, 0, 0, 0, 44]   |[45000, [120, 0]]  |[Apartamento, Residencial]|
-|751522-JESYFEQL|[Rio de Janeiro, [-22.986927, -43.646786], Pedra de Guaratiba, Zona Oeste]      |[0, 0, 0, 0, 0, 132, 0, 0, 132]|[50000, [100, 0]]  |[Outros, Residencial]     |
-|714052-GAAEWYKS|[Rio de Janeiro, [-22.881977, -43.330818], Cascadura, Zona Norte]               |[1, 0, 0, 0, 0, 32, 3, 0, 32]  |[45000, [468, 346]]|[Outros, Comercial]       |
-|568886-ZIBFOMCC|[Rio de Janeiro, [-23.027653, -43.480742], Recreio dos Bandeirantes, Zona Oeste]|[2, 3, 3, 1, 1, 0, 2, 4, 60]   |[50000, [400, 120]]|[Apartamento, Residencial]|
-|526755-OBLTYTEN|[Rio de Janeiro, [-22.966059, -43.571183], Guaratiba, Zona Oeste]               |[0, 0, 0, 0, 0, 200, 0, 0, 200]|[50000, [0,]]      |[Outros, Residencial]     |
-|593569-CJLMNFGW|[Rio de Janeiro, [-22.939028, -43.3453], Freguesia (Jacarepaguá), Zona Oeste]   |[1, 0, 0, 0, 0, 25, 2, 0, 25]  |[50000, [801, 211]]|[Outros, Comercial]       |
-|989181-RYJOLMCU|[Rio de Janeiro, [-22.841509, -43.278855], Penha, Zona Norte]                   |[1, 0, 0, 0, 0, 23, 0, 0, 23]  |[50000, [230,]]    |[Outros, Comercial]       |
-|145372-EZKAKSWM|[Rio de Janeiro, [-22.835609, -43.392253], Ricardo de Albuquerque, Zona Norte]  |[0, 0, 0, 0, 0, 60, 0, 0, 60]  |[45000, [,]]       |[Outros, Comercial]       |
-|792086-NWNQTDYL|[Rio de Janeiro, [-22.885306, -43.253044], Jacarezinho, Zona Norte]             |[1, 1, 0, 1, 0, 35, 0, 0, 33]  |[45336, [0, 0]]    |[Apartamento, Residencial]|
-+---------------+--------------------------------------------------------------------------------+-------------------------------+-------------------+--------------------------+
+df.select("listing.address.city","listing.address.zone","listing.features.*","listing.prices.price","listing.types.*").show(10)
++--------------+----------+---------+--------+------+-------------+------+----------+---------+---------------+-----------+-----+-----------+-----------+
+|          city|      zone|bathrooms|bedrooms|floors|parkingSpaces|suites|totalAreas|unitFloor|unitsOnTheFloor|usableAreas|price|       unit|      usage|
++--------------+----------+---------+--------+------+-------------+------+----------+---------+---------------+-----------+-----+-----------+-----------+
+|Rio de Janeiro|Zona Oeste|        0|       0|     0|            1|     0|        62|        0|              0|         62|45000|     Outros|Residencial|
+|Rio de Janeiro|Zona Oeste|        1|       2|     0|            1|     0|         0|        0|              0|         44|45000|Apartamento|Residencial|
+|Rio de Janeiro|Zona Oeste|        0|       0|     0|            0|     0|       132|        0|              0|        132|50000|     Outros|Residencial|
+|Rio de Janeiro|Zona Norte|        1|       0|     0|            0|     0|        32|        3|              0|         32|45000|     Outros|  Comercial|
+|Rio de Janeiro|Zona Oeste|        2|       3|     3|            1|     1|         0|        2|              4|         60|50000|Apartamento|Residencial|
+|Rio de Janeiro|Zona Oeste|        0|       0|     0|            0|     0|       200|        0|              0|        200|50000|     Outros|Residencial|
+|Rio de Janeiro|Zona Oeste|        1|       0|     0|            0|     0|        25|        2|              0|         25|50000|     Outros|  Comercial|
+|Rio de Janeiro|Zona Norte|        1|       0|     0|            0|     0|        23|        0|              0|         23|50000|     Outros|  Comercial|
+|Rio de Janeiro|Zona Norte|        0|       0|     0|            0|     0|        60|        0|              0|         60|45000|     Outros|  Comercial|
+|Rio de Janeiro|Zona Norte|        1|       1|     0|            1|     0|        35|        0|              0|         33|45336|Apartamento|Residencial|
++--------------+----------+---------+--------+------+-------------+------+----------+---------+---------------+-----------+-----+-----------+-----------+
 only showing top 10 rows
 
+val df1 = df.select("listing.address.city","listing.address.zone","listing.features.*","listing.prices.price","listing.types.*")
 
-df.select("ident.customerID", "listing.address.*", "listing.features.*", "listing.prices.*", "listing.types.*").show(10, false)
-+---------------+--------------+------------------------+------------------------+----------+---------+--------+------+-------------+------+----------+---------+---------------+-----------+-----+----------+-----------+-----------+
-|customerID     |city          |location                |neighborhood            |zone      |bathrooms|bedrooms|floors|parkingSpaces|suites|totalAreas|unitFloor|unitsOnTheFloor|usableAreas|price|tax       |unit       |usage      |
-+---------------+--------------+------------------------+------------------------+----------+---------+--------+------+-------------+------+----------+---------+---------------+-----------+-----+----------+-----------+-----------+
-|775564-BOJSMVON|Rio de Janeiro|[-22.909429, -43.413557]|Taquara                 |Zona Oeste|0        |0       |0     |1            |0     |62        |0        |0              |62         |45000|[150, 0]  |Outros     |Residencial|
-|660895-AUENKNYY|Rio de Janeiro|[-22.869698, -43.509141]|Santíssimo              |Zona Oeste|1        |2       |0     |1            |0     |0         |0        |0              |44         |45000|[120, 0]  |Apartamento|Residencial|
-|751522-JESYFEQL|Rio de Janeiro|[-22.986927, -43.646786]|Pedra de Guaratiba      |Zona Oeste|0        |0       |0     |0            |0     |132       |0        |0              |132        |50000|[100, 0]  |Outros     |Residencial|
-|714052-GAAEWYKS|Rio de Janeiro|[-22.881977, -43.330818]|Cascadura               |Zona Norte|1        |0       |0     |0            |0     |32        |3        |0              |32         |45000|[468, 346]|Outros     |Comercial  |
-|568886-ZIBFOMCC|Rio de Janeiro|[-23.027653, -43.480742]|Recreio dos Bandeirantes|Zona Oeste|2        |3       |3     |1            |1     |0         |2        |4              |60         |50000|[400, 120]|Apartamento|Residencial|
-|526755-OBLTYTEN|Rio de Janeiro|[-22.966059, -43.571183]|Guaratiba               |Zona Oeste|0        |0       |0     |0            |0     |200       |0        |0              |200        |50000|[0,]      |Outros     |Residencial|
-|593569-CJLMNFGW|Rio de Janeiro|[-22.939028, -43.3453]  |Freguesia (Jacarepaguá) |Zona Oeste|1        |0       |0     |0            |0     |25        |2        |0              |25         |50000|[801, 211]|Outros     |Comercial  |
-|989181-RYJOLMCU|Rio de Janeiro|[-22.841509, -43.278855]|Penha                   |Zona Norte|1        |0       |0     |0            |0     |23        |0        |0              |23         |50000|[230,]    |Outros     |Comercial  |
-|145372-EZKAKSWM|Rio de Janeiro|[-22.835609, -43.392253]|Ricardo de Albuquerque  |Zona Norte|0        |0       |0     |0            |0     |60        |0        |0              |60         |45000|[,]       |Outros     |Comercial  |
-|792086-NWNQTDYL|Rio de Janeiro|[-22.885306, -43.253044]|Jacarezinho             |Zona Norte|1        |1       |0     |1            |0     |35        |0        |0              |33         |45336|[0, 0]    |Apartamento|Residencial|
-+---------------+--------------+------------------------+------------------------+----------+---------+--------+------+-------------+------+----------+---------+---------------+-----------+-----+----------+-----------+-----------+
-only showing top 10 rows
-
-
-val df1 = df.select("ident.customerID", "listing.address.*", "listing.features.*", "listing.prices.*", "listing.types.*").
-          drop("city", "location", "tax", "totalAreas")
-		  
 df1.printSchema
 root
- |-- customerID: string (nullable = true)
- |-- neighborhood: string (nullable = true)
+ |-- city: string (nullable = true)
  |-- zone: string (nullable = true)
  |-- bathrooms: long (nullable = true)
  |-- bedrooms: long (nullable = true)
  |-- floors: long (nullable = true)
  |-- parkingSpaces: long (nullable = true)
  |-- suites: long (nullable = true)
+ |-- totalAreas: string (nullable = true)
  |-- unitFloor: long (nullable = true)
  |-- unitsOnTheFloor: long (nullable = true)
  |-- usableAreas: string (nullable = true)
  |-- price: string (nullable = true)
  |-- unit: string (nullable = true)
  |-- usage: string (nullable = true)
+ 
+df1.groupBy("city","zone").count.orderBy("city","zone").show
++------------------+------------+-----+
+|              city|        zone|count|
++------------------+------------+-----+
+|Armação dos Búzios|            |    1|
+|      Cachoeirinha|            |    1|
+|         Queimados|            |    3|
+|    Rio de Janeiro|            |  157|
+|    Rio de Janeiro|Zona Central| 1921|
+|    Rio de Janeiro|  Zona Norte|15191|
+|    Rio de Janeiro|  Zona Oeste|37116|
+|    Rio de Janeiro|    Zona Sul|19222|
+|       São Gonçalo|            |    2|
+|São João de Meriti|            |    1|
++------------------+------------+-----+
 
-df1.show(10, false)
-+---------------+------------------------+----------+---------+--------+------+-------------+------+---------+---------------+-----------+-----+-----------+-----------+
-|customerID     |neighborhood            |zone      |bathrooms|bedrooms|floors|parkingSpaces|suites|unitFloor|unitsOnTheFloor|usableAreas|price|unit       |usage      |
-+---------------+------------------------+----------+---------+--------+------+-------------+------+---------+---------------+-----------+-----+-----------+-----------+
-|775564-BOJSMVON|Taquara                 |Zona Oeste|0        |0       |0     |1            |0     |0        |0              |62         |45000|Outros     |Residencial|
-|660895-AUENKNYY|Santíssimo              |Zona Oeste|1        |2       |0     |1            |0     |0        |0              |44         |45000|Apartamento|Residencial|
-|751522-JESYFEQL|Pedra de Guaratiba      |Zona Oeste|0        |0       |0     |0            |0     |0        |0              |132        |50000|Outros     |Residencial|
-|714052-GAAEWYKS|Cascadura               |Zona Norte|1        |0       |0     |0            |0     |3        |0              |32         |45000|Outros     |Comercial  |
-|568886-ZIBFOMCC|Recreio dos Bandeirantes|Zona Oeste|2        |3       |3     |1            |1     |2        |4              |60         |50000|Apartamento|Residencial|
-|526755-OBLTYTEN|Guaratiba               |Zona Oeste|0        |0       |0     |0            |0     |0        |0              |200        |50000|Outros     |Residencial|
-|593569-CJLMNFGW|Freguesia (Jacarepaguá) |Zona Oeste|1        |0       |0     |0            |0     |2        |0              |25         |50000|Outros     |Comercial  |
-|989181-RYJOLMCU|Penha                   |Zona Norte|1        |0       |0     |0            |0     |0        |0              |23         |50000|Outros     |Comercial  |
-|145372-EZKAKSWM|Ricardo de Albuquerque  |Zona Norte|0        |0       |0     |0            |0     |0        |0              |60         |45000|Outros     |Comercial  |
-|792086-NWNQTDYL|Jacarezinho             |Zona Norte|1        |1       |0     |1            |0     |0        |0              |33         |45336|Apartamento|Residencial|
-+---------------+------------------------+----------+---------+--------+------+-------------+------+---------+---------------+-----------+-----+-----------+-----------+
-only showing top 10 rows
+df1.groupBy("unit","usage").count.orderBy("unit","usage").show
++-----------+-----------+-----+
+|       unit|      usage|count|
++-----------+-----------+-----+
+|Apartamento|Residencial|59106|
+|       Casa|  Comercial|   89|
+|       Casa|Residencial| 9300|
+|     Outros|  Comercial| 3930|
+|     Outros|Residencial| 1190|
++-----------+-----------+-----+
 
-
-df1.describe().show
-+-------+---------------+--------------------+--------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+-----------+-----------+
-|summary|     customerID|        neighborhood|    zone|         bathrooms|          bedrooms|            floors|     parkingSpaces|            suites|         unitFloor|   unitsOnTheFloor|       usableAreas|             price|       unit|      usage|
-+-------+---------------+--------------------+--------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+-----------+-----------+
-|  count|          73615|               73615|   73615|             73615|             73615|             73615|             73615|             73615|             73615|             73615|             73615|             73615|      73615|      73615|
-|   mean|           null|                null|    null| 2.372396929973511|2.5739726957821096|1.9319432180941385|1.4089112273313862|1.0746586972763703|1.4935135502275352|1.2205121238877945|141.54435916593084|1210759.3738232697|       null|       null|
-| stddev|           null|                null|    null|1.5335566495971622|1.2810913473064494| 4.528961565493774|1.7273581137467433|1.1773235036359209|13.117323714945186| 3.413755491536239|146.73695217489413|1384724.6534532323|       null|       null|
-|    min|000002-EJVWXGWN|            Abolição|        |                 0|                 0|                 0|                 0|                 0|                 0|                 0|                 0|            100000|Apartamento|  Comercial|
-|    max|999985-GKNJELHM|Área Rural de Rio...|Zona Sul|                49|                50|                50|               180|                50|              1234|                76|               999|           9999999|     Outros|Residencial|
-+-------+---------------+--------------------+--------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+------------------+-----------+-----------+
-
-df1.groupBy("usage").count.show
-+-----------+-----+
-|      usage|count|
-+-----------+-----+
-|  Comercial| 4019|
-|Residencial|69596|
-+-----------+-----+
-
-// consider only residential
 
 import org.apache.spark.sql.types._
 
-val df2 = df1.where('usage === "Residencial").
-          withColumn("usableAreas", 'usableAreas.cast(LongType)).
-          withColumn("price", 'price.cast(DoubleType))
-		  
+val df2 = df1.where('city === "Rio de Janeiro").withColumn("label", 'price.cast(DoubleType)).withColumn("usableAreas", 'usableAreas.cast(DoubleType))
+
 df2.printSchema
 root
- |-- customerID: string (nullable = true)
- |-- neighborhood: string (nullable = true)
+ |-- city: string (nullable = true)
  |-- zone: string (nullable = true)
  |-- bathrooms: long (nullable = true)
  |-- bedrooms: long (nullable = true)
  |-- floors: long (nullable = true)
  |-- parkingSpaces: long (nullable = true)
  |-- suites: long (nullable = true)
+ |-- totalAreas: string (nullable = true)
  |-- unitFloor: long (nullable = true)
  |-- unitsOnTheFloor: long (nullable = true)
- |-- usableAreas: long (nullable = true)
- |-- price: double (nullable = true)
+ |-- usableAreas: double (nullable = true)
+ |-- price: string (nullable = true)
  |-- unit: string (nullable = true)
  |-- usage: string (nullable = true)
- 
-
-df2.groupBy("zone").count.show
-+------------+-----+
-|        zone|count|
-+------------+-----+
-|  Zona Norte|14379|
-|  Zona Oeste|35523|
-|Zona Central| 1002|
-|    Zona Sul|18535|
-|            |  157|
-+------------+-----+
-
-// remove records with zone not defined
-
-val df3 = df2.where('zone =!= "").drop("usage").
-             withColumnRenamed("price", "label")
-								 
-df3.printSchema
-root
- |-- customerID: string (nullable = true)
- |-- neighborhood: string (nullable = true)
- |-- zone: string (nullable = true)
- |-- bathrooms: long (nullable = true)
- |-- bedrooms: long (nullable = true)
- |-- floors: long (nullable = true)
- |-- parkingSpaces: long (nullable = true)
- |-- suites: long (nullable = true)
- |-- unitFloor: long (nullable = true)
- |-- unitsOnTheFloor: long (nullable = true)
- |-- usableAreas: long (nullable = true)
  |-- label: double (nullable = true)
- |-- unit: string (nullable = true)
-
  
-df3.groupBy("unit").count.show
-+-----------+-----+
-|       unit|count|
-+-----------+-----+
-|     Outros| 1186|
-|Apartamento|58980|
-|       Casa| 9273|
-+-----------+-----+
-
 
 import org.apache.spark.ml.feature.{StringIndexer, OneHotEncoder, VectorAssembler}
 
-val dfrawIndexer1 = new StringIndexer().setInputCol("unit").setOutputCol("unitCat")
-val dfrawIndexer2 = new StringIndexer().setInputCol("zone").setOutputCol("zoneCat")
+val stridx1 = new StringIndexer().setInputCol("unit").setOutputCol("unitIdx")
+val stridx2 = new StringIndexer().setInputCol("usage").setOutputCol("usageIdx")
+val stridx3 = new StringIndexer().setInputCol("zone").setOutputCol("zoneIdx")
 
-val dfrawIndexer11 = new OneHotEncoder().setInputCol("unitCat").setOutputCol("unitVect")
-val dfrawIndexer21 = new OneHotEncoder().setInputCol("zoneCat").setOutputCol("zoneVect")
+val ohevect1 = new OneHotEncoder().setInputCol("unitIdx").setOutputCol("unitVect")
+val ohevect2 = new OneHotEncoder().setInputCol("usageIdx").setOutputCol("usageVect")
+val ohevect3 = new OneHotEncoder().setInputCol("zoneIdx").setOutputCol("zoneVect")
 
-val va = new VectorAssembler().setOutputCol("features").setInputCols(Array("bathrooms","bedrooms","floors","parkingSpaces","suites","unitFloor","unitsOnTheFloor","usableAreas","unitVect","zoneVect"))
+val va = new VectorAssembler().setOutputCol("features").setInputCols(Array("zoneIdx","bathrooms","bedrooms","floors","parkingSpaces","suites","unitFloor","unitsOnTheFloor","usableAreas","unitIdx","usageIdx"))
 
 import org.apache.spark.ml.Pipeline
-val pipeline = new Pipeline().setStages(Array(dfrawIndexer1,dfrawIndexer2,dfrawIndexer11,dfrawIndexer21,va))
+val pipeline = new Pipeline().setStages(Array(stridx1,stridx2,stridx3,va))
 
-val df4 = pipeline.fit(df3).transform(df3)
+val df3 = pipeline.fit(df2).transform(df2)
 
-df4.printSchema
+df3.printSchema
 root
- |-- customerID: string (nullable = true)
- |-- neighborhood: string (nullable = true)
+ |-- city: string (nullable = true)
  |-- zone: string (nullable = true)
  |-- bathrooms: long (nullable = true)
  |-- bedrooms: long (nullable = true)
  |-- floors: long (nullable = true)
  |-- parkingSpaces: long (nullable = true)
  |-- suites: long (nullable = true)
+ |-- totalAreas: string (nullable = true)
  |-- unitFloor: long (nullable = true)
  |-- unitsOnTheFloor: long (nullable = true)
- |-- usableAreas: long (nullable = true)
- |-- price: double (nullable = true)
+ |-- usableAreas: double (nullable = true)
+ |-- price: string (nullable = true)
  |-- unit: string (nullable = true)
- |-- unitCat: double (nullable = false)
- |-- zoneCat: double (nullable = false)
- |-- unitVect: vector (nullable = true)
- |-- zoneVect: vector (nullable = true)
+ |-- usage: string (nullable = true)
+ |-- label: double (nullable = true)
+ |-- unitIdx: double (nullable = false)
+ |-- usageIdx: double (nullable = false)
+ |-- zoneIdx: double (nullable = false)
  |-- features: vector (nullable = true)
  
-df4.show(10)
-+---------------+--------------------+----------+---------+--------+------+-------------+------+---------+---------------+-----------+-------+-----------+-------+-------+-------------+-------------+--------------------+
-|     customerID|        neighborhood|      zone|bathrooms|bedrooms|floors|parkingSpaces|suites|unitFloor|unitsOnTheFloor|usableAreas|  price|       unit|unitCat|zoneCat|     unitVect|     zoneVect|            features|
-+---------------+--------------------+----------+---------+--------+------+-------------+------+---------+---------------+-----------+-------+-----------+-------+-------+-------------+-------------+--------------------+
-|775564-BOJSMVON|             Taquara|Zona Oeste|        0|       0|     0|            1|     0|        0|              0|         62|45000.0|     Outros|    2.0|    0.0|    (2,[],[])|(3,[0],[1.0])|(13,[3,7,10],[1.0...|
-|660895-AUENKNYY|          Santíssimo|Zona Oeste|        1|       2|     0|            1|     0|        0|              0|         44|45000.0|Apartamento|    0.0|    0.0|(2,[0],[1.0])|(3,[0],[1.0])|(13,[0,1,3,7,8,10...|
-|751522-JESYFEQL|  Pedra de Guaratiba|Zona Oeste|        0|       0|     0|            0|     0|        0|              0|        132|50000.0|     Outros|    2.0|    0.0|    (2,[],[])|(3,[0],[1.0])|(13,[7,10],[132.0...|
-|568886-ZIBFOMCC|Recreio dos Bande...|Zona Oeste|        2|       3|     3|            1|     1|        2|              4|         60|50000.0|Apartamento|    0.0|    0.0|(2,[0],[1.0])|(3,[0],[1.0])|[2.0,3.0,3.0,1.0,...|
-|526755-OBLTYTEN|           Guaratiba|Zona Oeste|        0|       0|     0|            0|     0|        0|              0|        200|50000.0|     Outros|    2.0|    0.0|    (2,[],[])|(3,[0],[1.0])|(13,[7,10],[200.0...|
-|792086-NWNQTDYL|         Jacarezinho|Zona Norte|        1|       1|     0|            1|     0|        0|              0|         33|45336.0|Apartamento|    0.0|    2.0|(2,[0],[1.0])|(3,[2],[1.0])|(13,[0,1,3,7,8,12...|
-|339622-MNZGLKTZ|           Guaratiba|Zona Oeste|        0|       0|     0|            0|     0|        0|              0|        120|45000.0|     Outros|    2.0|    0.0|    (2,[],[])|(3,[0],[1.0])|(13,[7,10],[120.0...|
-|952338-SVULQMXR|          Santa Cruz|Zona Oeste|        0|       0|     0|            0|     0|        0|              0|        468|45000.0|     Outros|    2.0|    0.0|    (2,[],[])|(3,[0],[1.0])|(13,[7,10],[468.0...|
-|570439-LDICQOXZ|       Vargem Grande|Zona Oeste|        0|       0|     0|            0|     0|        1|              0|        180|50000.0|     Outros|    2.0|    0.0|    (2,[],[])|(3,[0],[1.0])|(13,[5,7,10],[1.0...|
-|684023-YTBNKLLO|               Bangu|Zona Oeste|        0|       0|     0|            0|     0|        0|              0|        128|50000.0|     Outros|    2.0|    0.0|    (2,[],[])|(3,[0],[1.0])|(13,[7,10],[128.0...|
-+---------------+--------------------+----------+---------+--------+------+-------------+------+---------+---------------+-----------+-------+-----------+-------+-------+-------------+-------------+--------------------+
+df3.select("label","features").show(10,false)
++-------+----------------------------------------------+
+|label  |features                                      |
++-------+----------------------------------------------+
+|45000.0|(11,[4,8,9],[1.0,62.0,2.0])                   |
+|45000.0|(11,[1,2,4,8],[1.0,2.0,1.0,44.0])             |
+|50000.0|(11,[8,9],[132.0,2.0])                        |
+|45000.0|(11,[0,1,6,8,9,10],[2.0,1.0,3.0,32.0,2.0,1.0])|
+|50000.0|[0.0,2.0,3.0,3.0,1.0,1.0,2.0,4.0,60.0,0.0,0.0]|
+|50000.0|(11,[8,9],[200.0,2.0])                        |
+|50000.0|(11,[1,6,8,9,10],[1.0,2.0,25.0,2.0,1.0])      |
+|50000.0|(11,[0,1,8,9,10],[2.0,1.0,23.0,2.0,1.0])      |
+|45000.0|(11,[0,8,9,10],[2.0,60.0,2.0,1.0])            |
+|45336.0|(11,[0,1,2,4,8],[2.0,1.0,1.0,1.0,33.0])       |
++-------+----------------------------------------------+
 only showing top 10 rows
 
 
-// calculate pearson correlation to check multicolinearity
+// -----  calculate pearson correlation to check multicolinearity
 
 import org.apache.spark.ml.stat.Correlation
 import org.apache.spark.ml.linalg.Matrix
 import org.apache.spark.sql.Row
 
-val corr = Correlation.corr(df4, "features", "pearson").head match {
+val corr = Correlation.corr(df3, "features", "pearson").head match {
    case Row(coeff: Matrix) => coeff
 }
 corr: org.apache.spark.ml.linalg.Matrix =
-1.0                   0.6659108140404633     ... (13 total)
-0.6659108140404633    1.0                    ...
--0.04459075411386755  -0.08218400633990317   ...
-0.48759044726023026   0.46716126012130704    ...
-0.7529278295372207    0.6011992199948905     ...
-0.007624254692643414  -0.007161958491290415  ...
--0.10743744458608334  -0.13081443793326178   ...
-0.5980727896311432    0.5637502466117856     ...
--0.275457964016695    -0.25833901797305675   ...
-0.3430423783411896    0.34996218926364303    ...
-0.24234512440839717   0.16382169811637828    ...
--0.0987517575884239   -0.04943252002957333   ...
--0.16249744106600564  -0.1117118654770791    ...
+1.0                    -0.22406149340612205  ... (11 total)
+-0.22406149340612205   1.0                   ...
+-0.18888475915484168   0.6559360864261189    ...
+0.044450632566242765   -0.0382527293632597   ...
+-0.1986458601045458    0.4048244341765544    ...
+-0.31998592153709216   0.7375019444637959    ...
+-8.663763931006387E-4  0.007057211256796193  ...
+0.043368347757720555   -0.09841586066763162  ...
+-0.16681811191470333   0.5629732349901702    ...
+0.030995863303815988   0.02241616001374928   ...
+0.13856800562274557    -0.13992232049394293  ...
 
-
-corr.toDense.rowIter.foreach( x => println(x.toString))
-[1.0,0.6659108140404633,-0.04459075411386755,0.48759044726023026,0.7529278295372207,0.007624254692643414,-0.10743744458608334,0.5980727896311432,-0.275457964016695,0.3430423783411896,0.24234512440839717,-0.0987517575884239,-0.16249744106600564]
-[0.6659108140404633,1.0,-0.08218400633990317,0.46716126012130704,0.6011992199948905,-0.007161958491290415,-0.13081443793326178,0.5637502466117856,-0.25833901797305675,0.34996218926364303,0.16382169811637828,-0.04943252002957333,-0.1117118654770791]
-[-0.04459075411386755,-0.08218400633990317,1.0,-0.04848619212363295,-0.04810621410928413,0.12098169964847286,0.7377174223407815,-0.10391684981974374,0.15394701540869826,-0.14208959758542947,-0.031749541741814075,0.017401937350148833,-0.01692629359464072]
-[0.48759044726023026,0.46716126012130704,-0.04848619212363295,1.0,0.48498765200933547,0.0037675536989095083,-0.07452651462786448,0.4837318133173261,-0.2527455846177266,0.29332560072857117,0.26798996748531506,-0.17880683968872219,-0.10995657109246244]
-[0.7529278295372207,0.6011992199948905,-0.04810621410928413,0.48498765200933547,1.0,0.00520616259920706,-0.09191360058294247,0.5776358344888646,-0.236216910508503,0.28222102385964243,0.3275464785706333,-0.13639782117662738,-0.23031658928206455]
-[0.007624254692643414,-0.007161958491290415,0.12098169964847286,0.0037675536989095083,0.00520616259920706,1.0,0.09235873974156737,-0.012748431948435638,0.034673811218226804,-0.03140334035914296,0.007517857899523005,-0.004332638565611953,-0.011111574148280646]
-[-0.10743744458608334,-0.13081443793326178,0.7377174223407815,-0.07452651462786448,-0.09191360058294247,0.09235873974156737,1.0,-0.1442217951546995,0.1474970967590177,-0.13775421017328537,-0.012433552113397951,-0.05554033815922366,0.030752915562667477]
-[0.5980727896311432,0.5637502466117856,-0.10391684981974374,0.4837318133173261,0.5776358344888646,-0.012748431948435638,-0.1442217951546995,1.0,-0.4821703677188278,0.45913599979461,0.1924660786942314,-0.051961854744071036,-0.15855325510271892]
-[-0.275457964016695,-0.25833901797305675,0.15394701540869826,-0.2527455846177266,-0.236216910508503,0.034673811218226804,0.1474970967590177,-0.4821703677188278,1.0,-0.9322703300624003,-0.17603330492254612,0.1802882037032383,0.010312385129629328]
-[0.3430423783411896,0.34996218926364303,-0.14208959758542947,0.29332560072857117,0.28222102385964243,-0.03140334035914296,-0.13775421017328537,0.45913599979461,-0.9322703300624003,1.0,0.1786398062840606,-0.1832983149883141,-0.00796096279993371]
-[0.24234512440839717,0.16382169811637828,-0.031749541741814075,0.26798996748531506,0.3275464785706333,0.007517857899523005,-0.012433552113397951,0.1924660786942314,-0.17603330492254612,0.1786398062840606,1.0,-0.6175510218742946,-0.5229964523829367]
-[-0.0987517575884239,-0.04943252002957333,0.017401937350148833,-0.17880683968872219,-0.13639782117662738,-0.004332638565611953,-0.05554033815922366,-0.051961854744071036,0.1802882037032383,-0.1832983149883141,-0.6175510218742946,1.0,-0.30836606466602967]
-[-0.16249744106600564,-0.1117118654770791,-0.01692629359464072,-0.10995657109246244,-0.23031658928206455,-0.011111574148280646,0.030752915562667477,-0.15855325510271892,0.010312385129629328,-0.00796096279993371,-0.5229964523829367,-0.30836606466602967,1.0]
 
 corr.toDense.rowIter.foreach( x => {
   val size = x.size
@@ -315,26 +227,23 @@ corr.toDense.rowIter.foreach( x => {
   }
   println
 })
-// "bathrooms","bedrooms","floors","parkingSpaces","suites","unitFloor","unitsOnTheFloor","usableAreas","unitVect","zoneVect"
-1.000   0.666   -0.045  0.488   0.753   0.008   -0.107  0.598   -0.275  0.343  0.242    -0.099  -0.162
-0.666   1.000   -0.082  0.467   0.601   -0.007  -0.131  0.564   -0.258  0.350  0.164    -0.049  -0.112
--0.045  -0.082  1.000   -0.048  -0.048  0.121   0.738   -0.104  0.154   -0.142 -0.032   0.017   -0.017
-0.488   0.467   -0.048  1.000   0.485   0.004   -0.075  0.484   -0.253  0.293  0.268    -0.179  -0.110
-0.753   0.601   -0.048  0.485   1.000   0.005   -0.092  0.578   -0.236  0.282  0.328    -0.136  -0.230
-0.008   -0.007  0.121   0.004   0.005   1.000   0.092   -0.013  0.035   -0.031 0.008    -0.004  -0.011
--0.107  -0.131  0.738   -0.075  -0.092  0.092   1.000   -0.144  0.147   -0.138 -0.012   -0.056  0.031
-0.598   0.564   -0.104  0.484   0.578   -0.013  -0.144  1.000   -0.482  0.459  0.192    -0.052  -0.159
--0.275  -0.258  0.154   -0.253  -0.236  0.035   0.147   -0.482  1.000   -0.932 -0.176   0.180   0.010
-0.343   0.350   -0.142  0.293   0.282   -0.031  -0.138  0.459   -0.932  1.000  0.179    -0.183  -0.008
-0.242   0.164   -0.032  0.268   0.328   0.008   -0.012  0.192   -0.176  0.179  1.000    -0.618  -0.523
--0.099  -0.049  0.017   -0.179  -0.136  -0.004  -0.056  -0.052  0.180   -0.183 -0.618   1.000   -0.308
--0.162  -0.112  -0.017  -0.110  -0.230  -0.011  0.031   -0.159  0.010   -0.008 -0.523   -0.308  1.000
+// "zoneIdx","bathrooms","bedrooms","floors","parkingSpaces","suites","unitFloor","unitsOnTheFloor","usableAreas","unitIdx","usageIdx"
+1.000   -0.224  -0.189  0.044   -0.199  -0.320  -0.001  0.043   -0.167  0.031   0.139
+-0.224  1.000   0.656   -0.038  0.405   0.738   0.007   -0.098  0.563   0.022   -0.140
+-0.189  0.656   1.000   -0.064  0.340   0.600   -0.007  -0.125  0.466   -0.194  -0.390
+0.044   -0.038  -0.064  1.000   -0.039  -0.042  0.125   0.671   -0.099  -0.106  -0.009
+-0.199  0.405   0.340   -0.039  1.000   0.390   0.002   -0.059  0.420   0.082   -0.040
+-0.320  0.738   0.600   -0.042  0.390   1.000   0.005   -0.086  0.514   -0.027  -0.198
+-0.001  0.007   -0.007  0.125   0.002   0.005   1.000   0.087   -0.014  -0.023  0.001
+0.043   -0.098  -0.125  0.671   -0.059  -0.086  0.087   1.000   -0.134  -0.026  0.079
+-0.167  0.563   0.466   -0.099  0.420   0.514   -0.014  -0.134  1.000   0.292   0.004
+0.031   0.022   -0.194  -0.106  0.082   -0.027  -0.023  -0.026  0.292   1.000   0.711
+0.139   -0.140  -0.390  -0.009  -0.040  -0.198  0.001   0.079   0.004   0.711   1.000
 
-// bathrooms x suites = 0.753 can be considered multicolinear
-// floors x unitFloor = 0.738 can be considered multicolinear
+// bathrooms x suites = 0.738 can be considered multicolinear
 
 
-// ----- building the logistic regression model
+// ----- building the linear regression model
 
 import org.apache.spark.ml.feature.StandardScaler
 val stdScaler = new StandardScaler().
@@ -345,62 +254,23 @@ setOutputCol("scaledFeatures")
 
 import org.apache.spark.ml.regression.LinearRegression
 val lr = new LinearRegression
-lr.setRegParam(0.01).setMaxIter(500).setFitIntercept(true).setFeaturesCol("scaledFeatures")
+lr.setFeaturesCol("scaledFeatures").setFitIntercept(true)
 
 import org.apache.spark.ml.Pipeline
 
-val pipeline = new Pipeline().setStages(Array(dfrawIndexer1,dfrawIndexer2,dfrawIndexer11,dfrawIndexer21,va,stdScaler,lr))
+val pipeline = new Pipeline().setStages(Array(stridx1,stridx2,stridx3,ohevect1,ohevect2,ohevect3,va,stdScaler,lr))
 
-val Array(trainingData, testData) = df3.randomSplit(Array(0.7,0.3),11L)
+val Array(trainingData, testData) = df2.randomSplit(Array(0.7,0.3),11L)
 
 trainingData.cache
 testData.cache
 
-val model = pipeline.fit(trainingData)
-
-val pred = model.transform(testData)
-
-import org.apache.spark.ml.evaluation.RegressionEvaluator
-val bceval = new RegressionEvaluator()
-
-bceval.setMetricName("rmse").evaluate(pred)
-res2: Double = 801148.7739833856
-
-bceval.setMetricName("r2").evaluate(pred)
-res3: Double = 0.6672826004184194
-
-import org.apache.spark.ml.regression.LinearRegressionModel
-val lrmodel = model.stages(6).asInstanceOf[LinearRegressionModel]
-
-lrmodel.summary.rootMeanSquaredError
-res21: Double = 811065.8035949243
-
-lrmodel.summary.r2
-res20: Double = 0.6610871475258102
-
-println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
-LR Model coefficients:
-111925.84694184328
-95871.9878330738
-1040.127542838459
-106629.79568517774
-304508.6422879161
-5148.511986150182
--36935.07939441638
-745480.4677768146
-186659.43398736947
--40841.115993940766
--145910.17986841025
-276873.9398438109
--133569.54195837153
-
--------------------
+// ----- find best linear regression model
 
 import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
 
 val paramGrid = new ParamGridBuilder().
 addGrid(lr.regParam, Array(0.1, 0.01, 0.001)).
-addGrid(lr.fitIntercept).
 addGrid(lr.maxIter, Array(100,300,500)).build()
 
 import org.apache.spark.ml.evaluation.RegressionEvaluator
@@ -416,18 +286,10 @@ val model = cv.fit(trainingData)
 import org.apache.spark.ml.PipelineModel
 val bestmodel = model.bestModel.asInstanceOf[PipelineModel]
 
-val pred = bestmodel.transform(testData)
-
-val bceval = new RegressionEvaluator()
-
-bceval.setMetricName("rmse").evaluate(pred)
-res22: Double = 801148.7741669366
-
-bceval.setMetricName("r2").evaluate(pred)
-res23: Double = 0.6672826002659618
-
 import org.apache.spark.ml.regression.LinearRegressionModel
-val lrmodel = bestmodel.stages(6).asInstanceOf[LinearRegressionModel]
+val lrmodel = bestmodel.stages(8).asInstanceOf[LinearRegressionModel]
+
+// -----  metrics extracted from model
 
 lrmodel.getRegParam
 res1: Double = 0.1
@@ -442,23 +304,38 @@ lrmodel.getStandardization
 res5: Boolean = true
 
 lrmodel.summary.rootMeanSquaredError
-res24: Double = 811065.8035949261
+res24: Double = 830979.4951435948
 
 lrmodel.summary.r2
-res25: Double = 0.6610871475258087
+res25: Double = 0.6405315234092093
 
 println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
 LR Model coefficients:
-111925.88487763188
-95872.01978336138
-1040.1270904670919
-106629.80615988783
-304508.6225105693
-5148.511751951696
--36935.07809357961
-745480.3645317926
-186659.2944089447
--40841.22038500527
--145910.1611723802
-276873.9412833456
--133569.5325211357
+36571.18709004051
+427281.4403519215
+-4867.433083658869
+42822.34415993753
+101140.32643768121
+57276.64390669586
+-7143.652368234158
+132930.9663188172
+336747.9537838553
+4260.751665304776
+-26003.89331395786
+718511.1662572375
+176537.3416375845
+-37308.63370091821
+-101709.2961304453
+
+// -----  metrics on test data
+
+val pred = bestmodel.transform(testData)
+
+val bceval = new RegressionEvaluator()
+
+bceval.setMetricName("rmse").evaluate(pred)
+res22: Double = 836569.5119744643
+
+bceval.setMetricName("r2").evaluate(pred)
+res23: Double = 0.6335167802658529
+
