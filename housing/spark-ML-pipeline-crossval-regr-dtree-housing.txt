@@ -1,3 +1,4 @@
+
 import org.apache.spark.sql.types._
 import spark.implicits._
 
@@ -17,7 +18,7 @@ add("B", DoubleType).
 add("LSTAT", DoubleType).
 add("MEDV", DoubleType)
 
-val df = spark.read.format("csv").option("ignoreLeadingWhiteSpace","true").schema(schemaHousing).load("housing/housing.data")
+val df = spark.read.format("csv").option("ignoreLeadingWhiteSpace","true").schema(schemaHousing).load("spark/housing/housing.data")
 
 df.show(10)
 +-------+----+-----+----+-----+-----+-----+------+---+-----+-------+------+-----+----+
@@ -48,11 +49,12 @@ df.describe().show
 +-------+------------------+------------------+------------------+------------------+-------------------+------------------+------------------+-----------------+-----------------+------------------+------------------+------------------+------------------+------------------+
 
 
-val df1 = df.withColumnRenamed("MEDV", "label")
+val df1 = df.withColumn("label", 'MEDV)
 
 import org.apache.spark.ml.feature.VectorAssembler
 
 val va = new VectorAssembler().setOutputCol("features").setInputCols(Array("CRIM","ZN","INDUS","CHAS","NOX","RM","AGE","DIS","RAD","TAX","PTRATIO","B","LSTAT"))
+
 val df2 = va.transform(df1)
 
 df2.printSchema
@@ -70,6 +72,7 @@ root
  |-- PTRATIO: double (nullable = true)
  |-- B: double (nullable = true)
  |-- LSTAT: double (nullable = true)
+ |-- MEDV: double (nullable = true)
  |-- label: double (nullable = true)
  |-- features: vector (nullable = true)
 
@@ -78,7 +81,7 @@ root
 
 import org.apache.spark.ml.regression.DecisionTreeRegressor
 val dt = new DecisionTreeRegressor
-dt.setMaxDepth(7).setMaxBins(32).setFeaturesCol("features")
+dt.setFeaturesCol("features")
 
 import org.apache.spark.ml.Pipeline
 
@@ -89,48 +92,7 @@ val Array(trainingData, testData) = df1.randomSplit(Array(0.7,0.3),11L)
 trainingData.cache
 testData.cache
 
-val model = pipeline.fit(trainingData)
-
-val pred = model.transform(testData)
-
-import org.apache.spark.ml.evaluation.RegressionEvaluator
-val bceval = new RegressionEvaluator()
-
-bceval.setMetricName("rmse").evaluate(pred)
-res20: Double = 4.683520801595622
-
-bceval.setMetricName("r2").evaluate(pred)
-res21: Double = 0.7237911466887421
-
-import org.apache.spark.ml.regression.DecisionTreeRegressionModel
-val dtmodel = model.stages(1).asInstanceOf[DecisionTreeRegressionModel]
-
-dtmodel.toDebugString
-res23: String =
-"DecisionTreeRegressionModel (uid=dtr_f91cfaa59b85) of depth 7 with 139 nodes
-  If (feature 11 <= 9.905000000000001)
-   If (feature 5 <= 6.9990000000000006)
-    If (feature 6 <= 94.05)
-     If (feature 5 <= 6.4830000000000005)
-      If (feature 8 <= 222.5)
-       If (feature 5 <= 6.1575)
-        Predict: 36.2
-       Else (feature 5 > 6.1575)
-        Predict: 28.700000000000003
-      Else (feature 8 > 222.5)
-       If (feature 5 <= 6.1575)
-        If (feature 2 <= 13.36)
-         Predict: 20.61851851851852
-        Else (feature 2 > 13.36)
-         Predict: 27.5
-       Else (feature 5 > 6.1575)
-        If (feature 6 <= 36.150000000000006)
-         Predict: 24.814285714285717
-        Else (feature 6 > 36.150000000000006)
-         Predict: 23.24736842105263
-     Else (featur...
-
--------------------
+// ----- find best decision tree model
 
 import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
 
@@ -154,43 +116,60 @@ val bestmodel = model.bestModel.asInstanceOf[PipelineModel]
 import org.apache.spark.ml.regression.DecisionTreeRegressionModel
 val dtmodel = bestmodel.stages(1).asInstanceOf[DecisionTreeRegressionModel]
 
+
+// -----  metrics extracted from model
+
 dtmodel.getMaxDepth
-res9: Int = 7
+res4: Int = 5
 
 dtmodel.getMaxBins
-res10: Int = 16
+res5: Int = 32
+
+val pred = bestmodel.transform(trainingData)
+
+val bceval = new RegressionEvaluator()
+
+bceval.setMetricName("rmse").evaluate(pred)
+res6: Double = 2.557989479813054
+
+bceval.setMetricName("r2").evaluate(pred)
+res7: Double = 0.9244126877416238
+
+dtmodel.toDebugString
+res8: String =
+"DecisionTreeRegressionModel (uid=dtr_3fb38592befc) of depth 5 with 57 nodes
+  If (feature 12 <= 9.905000000000001)
+   If (feature 5 <= 6.9990000000000006)
+    If (feature 6 <= 94.05)
+     If (feature 5 <= 6.4830000000000005)
+      If (feature 9 <= 222.5)
+       Predict: 32.45
+      Else (feature 9 > 222.5)
+       Predict: 22.513114754098364
+     Else (feature 5 > 6.4830000000000005)
+      If (feature 12 <= 5.359999999999999)
+       Predict: 30.49
+      Else (feature 12 > 5.359999999999999)
+       Predict: 26.232
+    Else (feature 6 > 94.05)
+     If (feature 0 <= 2.34126)
+      If (feature 0 <= 0.11586)
+       Predict: 32.5
+      Else (feature 0 > 0.11586)
+       Predict: 41.3
+     Else (feature 0 > 2.34126)
+      Predict: 50.0
+   Else (feature 5 > 6.9990000000000006)
+   ...
+
+// -----  metrics on test data
 
 val pred = bestmodel.transform(testData)
 
 val bceval = new RegressionEvaluator()
 
 bceval.setMetricName("rmse").evaluate(pred)
-res26: Double = 4.997664703429533
+res9: Double = 4.829493267344691
 
 bceval.setMetricName("r2").evaluate(pred)
-res27: Double = 0.6854954598157025
-
-dtmodel.toDebugString
-res28: String =
-"DecisionTreeRegressionModel (uid=dtr_f91cfaa59b85) of depth 7 with 141 nodes
-  If (feature 11 <= 9.905000000000001)
-   If (feature 5 <= 6.9990000000000006)
-    If (feature 6 <= 94.05)
-     If (feature 5 <= 6.4830000000000005)
-      If (feature 8 <= 222.5)
-       If (feature 5 <= 6.205)
-        Predict: 36.2
-       Else (feature 5 > 6.205)
-        Predict: 28.700000000000003
-      Else (feature 8 > 222.5)
-       If (feature 5 <= 6.1215)
-        If (feature 5 <= 5.3759999999999994)
-         Predict: 27.5
-        Else (feature 5 > 5.3759999999999994)
-         Predict: 20.592000000000002
-       Else (feature 5 > 6.1215)
-        If (feature 0 <= 0.059179999999999996)
-         Predict: 22.884615384615383
-        Else (feature 0 > 0.059179999999999996)
-         Predict: 24.25
-...
+res10: Double = 0.7063054970912164
