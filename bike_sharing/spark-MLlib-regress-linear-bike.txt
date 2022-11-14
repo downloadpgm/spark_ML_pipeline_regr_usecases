@@ -1,0 +1,206 @@
+
+val rdd = sc.textFile("spark/bike/hour.csv")
+
+rdd.take(10)
+res3: Array[String] = Array(instant,dteday,season,yr,mnth,hr,holiday,weekday,workingday,weathersit,temp,atemp,hum,windspeed,casual,registered,cnt, 1,2011-01-01,1,0,1,0,0,6,0,1,0.24,0.2879,0.81,0,3,13,16, 2,2011-01-01,1,0,1,1,0,6,0,1,0.22,0.2727,0.8,0,8,32,40, 3,2011-01-01,1,0,1,2,0,6,0,1,0.22,0.2727,0.8,0,5,27,32, 4,2011-01-01,1,0,1,3,0,6,0,1,0.24,0.2879,0.75,0,3,10,13, 5,2011-01-01,1,0,1,4,0,6,0,1,0.24,0.2879,0.75,0,0,1,1, 6,2011-01-01,1,0,1,5,0,6,0,2,0.24,0.2576,0.75,0.0896,0,1,1, 7,2011-01-01,1,0,1,6,0,6,0,1,0.22,0.2727,0.8,0,2,0,2, 8,2011-01-01,1,0,1,7,0,6,0,1,0.2,0.2576,0.86,0,1,2,3, 9,2011-01-01,1,0,1,8,0,6,0,1,0.24,0.2879,0.75,0,1,7,8)
+
+rdd.take(1)
+res0: Array[String] = Array(instant,dteday,season,yr,mnth,hr,holiday,weekday,workingday,weathersit,temp,atemp,hum,windspeed,casual,registered,cnt)
+
+val rdd_nohdr = rdd.filter( x => ! x.contains("instant"))
+
+val rdd1 = rdd_nohdr.map( x => x.split(",")).map( x => x.map( y => try { y.toDouble } catch { case e: Throwable => y } ))
+
+rdd1.take(2)
+res2: Array[Array[Any]] = Array(Array(1.0, 2011-01-01, 1.0, 0.0, 1.0, 0.0, 0.0, 6.0, 0.0, 1.0, 0.24, 0.2879, 0.81, 0.0, 3.0, 13.0, 16.0), Array(2.0, 2011-01-01, 1.0, 0.0, 1.0, 1.0, 0.0, 6.0, 0.0, 1.0, 0.22, 0.2727, 0.8, 0.0, 8.0, 32.0, 40.0))
+
+val rdd2 = rdd1.map( x => {
+   val tod = x(5) match {
+      case 5|6|7|8|9|10|11 => "morning"
+      case 12|13|14|15|16 => "afternoon"
+      case 17|18|19|20 => "evening"
+      case _ => "night"
+      }
+   // season,yr,mnth,tod,holiday,weekday,workingday,weathersit,temp,atemp,hum,windspeed,cnt
+   Array(x(2),x(3),x(4),tod,x(6),x(7),x(8),x(9),x(10),x(11),x(12),x(13),x(16)) 
+})
+	  
+rdd2.take(5)
+res7: Array[Array[Any]] = Array(Array(1.0, 0.0, 1.0, night, 0.0, 6.0, 0.0, 1.0, 0.24, 0.2879, 0.81, 0.0, 16.0), Array(1.0, 0.0, 1.0, night, 0.0, 6.0, 0.0, 1.0, 0.22, 0.2727, 0.8, 0.0, 40.0), Array(1.0, 0.0, 1.0, night, 0.0, 6.0, 0.0, 1.0, 0.22, 0.2727, 0.8, 0.0, 32.0), Array(1.0, 0.0, 1.0, night, 0.0, 6.0, 0.0, 1.0, 0.24, 0.2879, 0.75, 0.0, 13.0), Array(1.0, 0.0, 1.0, night, 0.0, 6.0, 0.0, 1.0, 0.24, 0.2879, 0.75, 0.0, 1.0))
+
+val rdd3 = rdd2.keyBy(x => (x(0),x(1),x(2),x(3),x(4),x(5),x(6),x(7)))
+rdd3: org.apache.spark.rdd.RDD[((Any, Any, Any, Any, Any, Any, Any, Any), Array[Any])] = MapPartitionsRDD[10] at keyBy at <console>:25
+
+val rdd4 = rdd3.mapValues( x => Array(x(8).toString.toDouble,x(9).toString.toDouble,x(10).toString.toDouble,x(11).toString.toDouble,x(12).toString.toDouble,1))
+rdd4: org.apache.spark.rdd.RDD[((Any, Any, Any, Any, Any, Any, Any, Any), Array[Double])] = MapPartitionsRDD[56] at mapValues at <console>:25
+
+rdd4.take(5)
+res31: Array[((Any, Any, Any, Any, Any, Any, Any, Any), Array[Double])] = Array(((1.0,0.0,1.0,night,0.0,6.0,0.0,1.0),Array(0.24, 0.2879, 0.81, 0.0, 16.0, 1.0)), ((1.0,0.0,1.0,night,0.0,6.0,0.0,1.0),Array(0.22, 0.2727, 0.8, 0.0, 40.0, 1.0)), ((1.0,0.0,1.0,night,0.0,6.0,0.0,1.0),Array(0.22, 0.2727, 0.8, 0.0, 32.0, 1.0)), ((1.0,0.0,1.0,night,0.0,6.0,0.0,1.0),Array(0.24, 0.2879, 0.75, 0.0, 13.0, 1.0)), ((1.0,0.0,1.0,night,0.0,6.0,0.0,1.0),Array(0.24, 0.2879, 0.75, 0.0, 1.0, 1.0)))
+
+def reduceSum(a1: Array[Double], a2: Array[Double]): Array[Double] = {
+  Array(a1(0)+a2(0),a1(1)+a2(1),a1(2)+a2(2),a1(3)+a2(3),a1(4)+a2(4),a1(5)+a2(5))
+}
+
+val summed = rdd4.reduceByKey(reduceSum)
+
+summed.take(5)
+res34: Array[((Any, Any, Any, Any, Any, Any, Any, Any), Array[Double])] = Array(((1.0,1.0,3.0,evening,0.0,1.0,1.0,2.0),Array(2.34, 2.303, 1.79, 1.0596999999999999, 2088.0, 4.0)), ((4.0,1.0,12.0,night,0.0,1.0,1.0,2.0),Array(5.22, 5.3328999999999995, 11.889999999999999, 1.2687000000000002, 642.0, 13.0)), ((3.0,0.0,7.0,evening,0.0,5.0,1.0,1.0),Array(14.220000000000002, 12.9699, 8.34, 3.5823, 6158.0, 18.0)), ((3.0,0.0,9.0,night,1.0,1.0,0.0,2.0),Array(4.68, 4.3487, 5.57, 1.9552999999999998, 338.0, 7.0)), ((3.0,1.0,7.0,afternoon,0.0,6.0,0.0,1.0),Array(8.82, 7.954500000000001, 3.7800000000000002, 2.0598, 4597.0, 10.0)))
+
+val avged = summed.mapValues( x => Array(x(0)/x(5), x(1)/x(5), x(2)/x(5), x(3)/x(5), x(4), x(5)))
+avged: org.apache.spark.rdd.RDD[((Any, Any, Any, Any, Any, Any, Any, Any), Array[Double])] = MapPartitionsRDD[60] at mapValues at <console>:25
+
+avged.take(5)
+res36: Array[((Any, Any, Any, Any, Any, Any, Any, Any), Array[Double])] = Array(((1.0,1.0,3.0,evening,0.0,1.0,1.0,2.0),Array(0.585, 0.57575, 0.4475, 0.26492499999999997, 2088.0, 4.0)), ((4.0,1.0,12.0,night,0.0,1.0,1.0,2.0),Array(0.4015384615384615, 0.4102230769230769, 0.9146153846153845, 0.0975923076923077, 642.0, 13.0)), ((3.0,0.0,7.0,evening,0.0,5.0,1.0,1.0),Array(0.7900000000000001, 0.72055, 0.4633333333333333, 0.19901666666666668, 6158.0, 18.0)), ((3.0,0.0,9.0,night,1.0,1.0,0.0,2.0),Array(0.6685714285714285, 0.6212428571428571, 0.7957142857142857, 0.2793285714285714, 338.0, 7.0)), ((3.0,1.0,7.0,afternoon,0.0,6.0,0.0,1.0),Array(0.882, 0.7954500000000001, 0.378, 0.20598, 4597.0, 10.0)))
+
+val flatted = avged.map{ case (k,v) => Array(k._1,k._2,k._3,k._4,k._5,k._6,k._7,k._8,v(0),v(1),v(2),v(3),v(4)) }
+flatted: org.apache.spark.rdd.RDD[Array[Any]] = MapPartitionsRDD[63] at map at <console>:25
+
+flatted.take(5)
+res39: Array[Array[Any]] = Array(Array(1.0, 1.0, 3.0, evening, 0.0, 1.0, 1.0, 2.0, 0.585, 0.57575, 0.4475, 0.26492499999999997, 2088.0), Array(4.0, 1.0, 12.0, night, 0.0, 1.0, 1.0, 2.0, 0.4015384615384615, 0.4102230769230769, 0.9146153846153845, 0.0975923076923077, 642.0), Array(3.0, 0.0, 7.0, evening, 0.0, 5.0, 1.0, 1.0, 0.7900000000000001, 0.72055, 0.4633333333333333, 0.19901666666666668, 6158.0), Array(3.0, 0.0, 9.0, night, 1.0, 1.0, 0.0, 2.0, 0.6685714285714285, 0.6212428571428571, 0.7957142857142857, 0.2793285714285714, 338.0), Array(3.0, 1.0, 7.0, afternoon, 0.0, 6.0, 0.0, 1.0, 0.882, 0.7954500000000001, 0.378, 0.20598, 4597.0))
+
+
+---- Conversion to 1-to-k binary encoding vectors 
+
+def oneHotEncColumns(rddx: org.apache.spark.rdd.RDD[Array[Any]], idx: Int):org.apache.spark.rdd.RDD[Array[Double]] = {
+  val categories = rddx.map(r => r(idx)).distinct.zipWithIndex.collectAsMap
+  val numCategories = categories.size
+  val vetcateg = rddx.map(r => {
+    val categoryIdx = categories(r(idx)).toInt
+    val categoryFeatures = if (numCategories > 2) Array.ofDim[Double](numCategories) else Array.ofDim[Double](1)
+    if (numCategories > 2) categoryFeatures(categoryIdx) = 1.0 else categoryFeatures(0) = categoryIdx
+    categoryFeatures
+  })
+  vetcateg
+}
+
+def mergeArray(rddx: org.apache.spark.rdd.RDD[Array[Any]], idx: Int*):org.apache.spark.rdd.RDD[Array[Double]] = {
+  var i = 0
+  var arr1 = oneHotEncColumns(rddx,idx(i))
+  for (j <- 1 until idx.size) {
+    var arr2 = oneHotEncColumns(rddx,idx(j))
+    var flt1 = arr1.zip(arr2).map(x => (x._1.toList ++ x._2.toList).toArray)
+    arr1 = flt1
+  }
+  arr1
+}
+
+val concat = mergeArray(flatted,0,2,3,5,7)
+
+concat.take(5)
+res43: Array[Array[Double]] = Array(Array(0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0), Array(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0), Array(0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0), Array(0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0), Array(0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0....
+
+concat.first.size
+res1: Int = 31
+
+val rdd5 = flatted.map( x => Array(x(1),x(4),x(6),x(8),x(9),x(10),x(11),x(12)) )
+
+rdd5.take(5)
+res2: Array[Array[Any]] = Array(Array(1.0, 0.0, 1.0, 0.585, 0.57575, 0.4475, 0.26492499999999997, 2088.0), Array(1.0, 0.0, 1.0, 0.4015384615384615, 0.4102230769230769, 0.9146153846153845, 0.0975923076923077, 642.0), Array(0.0, 0.0, 1.0, 0.7900000000000001, 0.72055, 0.4633333333333333, 0.19901666666666668, 6158.0), Array(0.0, 1.0, 0.0, 0.6685714285714285, 0.6212428571428571, 0.7957142857142857, 0.2793285714285714, 338.0), Array(1.0, 0.0, 0.0, 0.882, 0.7954500000000001, 0.378, 0.20598, 4597.0))
+
+// merging the numerical columns with 1-of-k vectors produced
+val vect = concat.zip(rdd5).map(x => (x._1.toList ++ x._2.toList).toArray).map( x => x.map( y => y.toString.toDouble) )
+vect: org.apache.spark.rdd.RDD[Array[Double]] = MapPartitionsRDD[54] at map at <console>:29
+
+vect.first.size
+res4: Int = 39
+
+vect.take(5)
+res8: Array[Array[Double]] = Array(Array(0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.585, 0.57575, 0.4475, 0.26492499999999997, 2088.0), Array(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.4015384615384615, 0.4102230769230769, 0.9146153846153845, 0.0975923076923077, 642.0), Array(0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.7900000000000001, 0.72055, 0.4633333333333333, 0.19901666666666668, 6158.0), Array(0.0, 1....
+
+
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.regression.LabeledPoint
+
+val data = vect.map(x => {
+  val arr_size = x.size - 1 
+  val l = x(arr_size)
+  val f = x.slice(0,arr_size)
+  LabeledPoint(l,Vectors.dense(f))
+})
+
+val sets = data.randomSplit(Array(0.7,0.3), 11L)
+val trainSet = sets(0)
+val testSet = sets(1)
+
+trainSet.cache
+testSet.cache
+
+---- MLlib Linear regression --------------
+
+import org.apache.spark.rdd.RDD
+import org.apache.spark.mllib.regression.LinearRegressionWithSGD
+import org.apache.spark.mllib.evaluation.RegressionMetrics
+
+def iterateLRwSGD(iterNums:Array[Int], stepSizes:Array[Double], train:RDD[LabeledPoint], test:RDD[LabeledPoint]) = {
+  println("iter, step  -> RMSE, MSE") 
+  for(numIter <- iterNums; step <- stepSizes) {
+    val model = new LinearRegressionWithSGD
+    model.setIntercept(true)
+    model.optimizer.setNumIterations(numIter).setStepSize(step)
+    val lr = model.run(train)
+    val validPredicts = test.map(x => (lr.predict(x.features),x.label))
+    val metrics = new RegressionMetrics(validPredicts)
+    println("%d, %7.5f -> %.4f, %.4f".format(numIter, step, metrics.rootMeanSquaredError, metrics.meanSquaredError))
+  }
+}
+
+iterateLRwSGD(Array(100,200,300),Array(1, 0.1, 0.01, 0.001), trainSet, testSet)
+100, 1.00000 -> 1248.4858, 1558716.7519
+100, 0.10000 -> 1364.7509, 1862545.0526
+100, 0.01000 -> 1766.2234, 3119545.0787
+100, 0.00100 -> 2173.7102, 4725015.9302
+200, 1.00000 -> 1248.1268, 1557820.5880
+200, 0.10000 -> 1313.3943, 1725004.4659
+200, 0.01000 -> 1673.9569, 2802131.5641
+200, 0.00100 -> 2143.0051, 4592470.7741
+300, 1.00000 -> 1248.1268, 1557820.5880
+300, 0.10000 -> 1296.2563, 1680280.4539
+300, 0.01000 -> 1627.7820, 2649674.2237
+300, 0.00100 -> 2120.3852, 4496033.1971
+
+
+----- Decide to scale features because variabiliaty increases even reducing step size of model 
+
+import org.apache.spark.mllib.feature.StandardScaler
+val scaler = new StandardScaler(true, true).fit(trainSet.map(x => x.features))
+ 
+val trainScaled = trainSet.map(x => LabeledPoint(x.label,scaler.transform(x.features)))
+val testScaled = testSet.map(x => LabeledPoint(x.label, scaler.transform(x.features)))
+
+trainScaled.cache
+testScaled.cache
+
+---- MLlib Linear regression --------------
+
+import org.apache.spark.rdd.RDD
+import org.apache.spark.mllib.regression.LinearRegressionWithSGD
+import org.apache.spark.mllib.evaluation.RegressionMetrics
+
+def iterateLRwSGD(iterNums:Array[Int], stepSizes:Array[Double], train:RDD[LabeledPoint], test:RDD[LabeledPoint]) = {
+  println("iter, step  -> RMSE, MSE") 
+  for(numIter <- iterNums; step <- stepSizes) {
+    val model = new LinearRegressionWithSGD
+    model.setIntercept(true)
+    model.optimizer.setNumIterations(numIter).setStepSize(step)
+    val lr = model.run(train)
+    val validPredicts = test.map(x => (lr.predict(x.features),x.label))
+    val metrics = new RegressionMetrics(validPredicts)
+    println("%d, %7.5f -> %.4f, %.4f".format(numIter, step, metrics.rootMeanSquaredError, metrics.meanSquaredError))
+  }
+}
+
+iterateLRwSGD(Array(100,200,300),Array(1, 0.1, 0.01, 0.001), trainScaled, testScaled)
+iter, step  -> RMSE, MSE
+100, 1.00000 -> 1240.3009, 1538346.2992
+100, 0.10000 -> 1250.7561, 1564390.7729
+100, 0.01000 -> 1882.7920, 3544905.8405
+100, 0.00100 -> 2202.2193, 4849770.0583
+200, 1.00000 -> 1240.3009, 1538346.2992
+200, 0.10000 -> 1244.0604, 1547686.3671
+200, 0.01000 -> 1771.1318, 3136907.8823
+200, 0.00100 -> 2182.5927, 4763710.9017
+300, 1.00000 -> 1240.3009, 1538346.2992
+300, 0.10000 -> 1244.0604, 1547686.3671
+300, 0.01000 -> 1699.7253, 2889066.0552
+300, 0.00100 -> 2167.8499, 4699573.2275
+
