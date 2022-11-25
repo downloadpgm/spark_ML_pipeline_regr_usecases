@@ -81,10 +81,9 @@ root
 
 import org.apache.spark.ml.regression.DecisionTreeRegressor
 val dt = new DecisionTreeRegressor
-dt.setFeaturesCol("features")
+dt.setMaxDepth(10).setMaxBins(32).setFeaturesCol("features")
 
 import org.apache.spark.ml.Pipeline
-
 val pipeline = new Pipeline().setStages(Array(va,dt))
 
 val Array(trainingData, testData) = df1.randomSplit(Array(0.7,0.3),11L)
@@ -92,7 +91,98 @@ val Array(trainingData, testData) = df1.randomSplit(Array(0.7,0.3),11L)
 trainingData.cache
 testData.cache
 
+val model = pipeline.fit(trainingData)
+
+-- collecting feature importance
+
+import org.apache.spark.ml.regression.DecisionTreeRegressionModel
+
+val dtmodel = model.stages.last.asInstanceOf[DecisionTreeRegressionModel]
+
+val featureImp = va.getInputCols.zip(dtmodel.featureImportances.toArray)
+
+val columns = Array("feature", "Importance")
+val featureImpDF = spark.createDataFrame(featureImp).toDF(columns: _*)
+
+featureImpDF.orderBy($"Importance".desc).show()
++-------+--------------------+
+|feature|          Importance|
++-------+--------------------+
+|  LSTAT|  0.5292157630111822|
+|     RM|  0.2545466168906542|
+|    AGE|  0.0720426046529192|
+|   CRIM|0.045706624981134515|
+|    NOX| 0.02707594408208365|
+|PTRATIO|0.019839109808568886|
+|    DIS|0.012720950056149797|
+|    TAX|0.012530426766699966|
+|      B|0.011767760451303068|
+|  INDUS|0.006076858323438...|
+|    RAD|0.005322665097530027|
+|     ZN|0.002795669973797583|
+|   CHAS|3.590059045381103E-4|
++-------+--------------------+
+
+// -----  metrics extracted from model
+
+val pred = model.transform(trainingData)
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+val bceval = new RegressionEvaluator()
+
+bceval.setMetricName("rmse").evaluate(pred)
+res12: Double = 0.7343747485142881
+
+bceval.setMetricName("r2").evaluate(pred)
+res13: Double = 0.9937700169464461
+
+dtmodel.toDebugString
+res14: String =
+"DecisionTreeRegressionModel (uid=dtr_f656184d2719) of depth 10 with 387 nodes
+  If (feature 12 <= 9.905000000000001)
+   If (feature 5 <= 6.9990000000000006)
+    If (feature 6 <= 94.05)
+     If (feature 5 <= 6.4830000000000005)
+      If (feature 9 <= 222.5)
+       If (feature 5 <= 6.1575)
+        Predict: 36.2
+       Else (feature 5 > 6.1575)
+        Predict: 28.700000000000003
+      Else (feature 9 > 222.5)
+       If (feature 5 <= 6.1575)
+        If (feature 8 <= 5.5)
+         If (feature 6 <= 77.75)
+          If (feature 12 <= 7.0649999999999995)
+           If (feature 11 <= 376.90999999999997)
+            Predict: 20.6
+           Else (feature 11 > 376.90999999999997)
+            Predict: 22.475
+          Else (feature 12 > 7.0649999999999995)
+           If (feature 7...
+		   
+// -----  metrics on test data
+
+val pred = model.transform(testData)
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+val bceval = new RegressionEvaluator()
+
+bceval.setMetricName("rmse").evaluate(pred)
+res15: Double = 4.94261397621421
+
+bceval.setMetricName("r2").evaluate(pred)
+res16: Double = 0.6923860164800828
+
+
 // ----- find best decision tree model
+
+import org.apache.spark.ml.regression.DecisionTreeRegressor
+val dt = new DecisionTreeRegressor
+dt.setFeaturesCol("features")
+
+import org.apache.spark.ml.Pipeline
+
+val pipeline = new Pipeline().setStages(Array(va,dt))
 
 import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
 

@@ -1,6 +1,5 @@
 
-val df = spark.read.format("csv").option("inferSchema","true").load("spark/used_cars/used_cars_price_train-data.csv").
-         toDF("Row","Name","Location","Year","Kilometers_Driven","Fuel_Type","Transmission","Owner_Type","Mileage","Engine","Power","Seats","New_Price","Price")
+val df = spark.read.format("csv").option("inferSchema","true").load("spark/used_cars/used_cars_price_train-data.csv").toDF("Row","Name","Location","Year","Kilometers_Driven","Fuel_Type","Transmission","Owner_Type","Mileage","Engine","Power","Seats","New_Price","Price")
 
 df.printSchema
 root
@@ -80,6 +79,7 @@ val df2 = df1.withColumn("age", (lit(2021)-'Year).cast(DoubleType)).
           withColumn("mileage_aux", regexp_extract('Mileage,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
           withColumn("engine_aux", regexp_extract('Engine,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
           withColumn("power_aux", regexp_extract('Power,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+		  withColumn("Kilometers_Driven", 'Kilometers_Driven / 1000).
           withColumnRenamed("Price", "label").
           drop("Row")
 
@@ -108,10 +108,10 @@ df2.describe().show
 |summary|                Name| Location|              Year|Kilometers_Driven|Fuel_Type|Transmission|Owner_Type| Mileage| Engine|   Power|             Seats| New_Price|             label|               age|       mileage_aux|        engine_aux|        power_aux|
 +-------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+------------------+------------------+------------------+-----------------+
 |  count|                6019|     6019|              6019|             6019|     6019|        6019|      6019|    6019|   6019|    6019|              6019|       824|              6019|              6019|              6019|              6019|             6019|
-|   mean|                null|     null|2013.3581990363848|58738.38029573019|     null|        null|      null|    null|   null|    null|5.2767901644791495|      null| 9.479468350224273| 7.641800963615219|18.135215152018656|1618.7388270476824|112.3204718391751|
-| stddev|                null|     null|  3.26974211609139|91268.84320624865|     null|        null|      null|    null|   null|    null|0.8063460892297473|      null|11.187917112455484|3.2697421160913938| 4.581548857057788| 600.4458584135865|53.56569974837497|
-|    min|Ambassador Classi...|Ahmedabad|              1998|              171|      CNG|   Automatic|     First|0.0 kmpl|1047 CC| 100 bhp|               0.0|      1 Cr|              0.44|               2.0|               0.0|              72.0|             34.2|
-|    max|Volvo XC90 2007-2...|     Pune|              2019|          6500000|   Petrol|      Manual|     Third|9.9 kmpl| 999 CC|99.6 bhp|              10.0|99.92 Lakh|             160.0|              23.0|             33.54|            5998.0|            560.0|
+|   mean|                null|     null|2013.3581990363848|58.73838029573025|     null|        null|      null|    null|   null|    null|5.2767901644791495|      null| 9.479468350224273| 7.641800963615219|18.135215152018656|1618.7388270476824|112.3204718391751|
+| stddev|                null|     null|  3.26974211609139| 91.2688432062487|     null|        null|      null|    null|   null|    null|0.8063460892297473|      null|11.187917112455484|3.2697421160913938| 4.581548857057788| 600.4458584135865|53.56569974837497|
+|    min|Ambassador Classi...|Ahmedabad|              1998|            0.171|      CNG|   Automatic|     First|0.0 kmpl|1047 CC| 100 bhp|               0.0|      1 Cr|              0.44|               2.0|               0.0|              72.0|             34.2|
+|    max|Volvo XC90 2007-2...|     Pune|              2019|           6500.0|   Petrol|      Manual|     Third|9.9 kmpl| 999 CC|99.6 bhp|              10.0|99.92 Lakh|             160.0|              23.0|             33.54|            5998.0|            560.0|
 +-------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+------------------+------------------+------------------+-----------------+
 
 df2.groupBy("Location").count.show
@@ -206,20 +206,20 @@ root
  |-- features: vector (nullable = true)
  
 df3.select("label","features").show(10,false)
-+-----+----------------------------------------------------+
-|label|features                                            |
-+-----+----------------------------------------------------+
-|1.75 |[72000.0,5.0,11.0,26.6,998.0,58.16,2.0,0.0,0.0,0.0] |
-|12.5 |[41000.0,5.0,6.0,19.67,1582.0,126.2,0.0,0.0,0.0,4.0]|
-|4.5  |[46000.0,5.0,10.0,18.2,1199.0,88.7,1.0,0.0,0.0,7.0] |
-|6.0  |[87000.0,7.0,9.0,20.77,1248.0,88.76,0.0,0.0,0.0,7.0]|
-|17.74|[40670.0,5.0,8.0,15.2,1968.0,140.8,0.0,1.0,1.0,3.0] |
-|2.35 |[75000.0,5.0,9.0,21.1,814.0,55.2,3.0,0.0,0.0,1.0]   |
-|3.5  |[86999.0,5.0,8.0,23.08,1461.0,63.1,0.0,0.0,0.0,8.0] |
-|17.5 |[36000.0,8.0,5.0,11.36,2755.0,171.5,0.0,1.0,0.0,0.0]|
-|5.2  |[64430.0,5.0,8.0,20.54,1598.0,103.6,0.0,0.0,0.0,4.0]|
-|1.95 |[65932.0,5.0,9.0,22.3,1248.0,74.0,0.0,0.0,1.0,7.0]  |
-+-----+----------------------------------------------------+
++-----+--------------------------------------------------+
+|label|features                                          |
++-----+--------------------------------------------------+
+|1.75 |[72.0,5.0,11.0,26.6,998.0,58.16,2.0,0.0,0.0,0.0]  |
+|12.5 |[41.0,5.0,6.0,19.67,1582.0,126.2,0.0,0.0,0.0,4.0] |
+|4.5  |[46.0,5.0,10.0,18.2,1199.0,88.7,1.0,0.0,0.0,7.0]  |
+|6.0  |[87.0,7.0,9.0,20.77,1248.0,88.76,0.0,0.0,0.0,7.0] |
+|17.74|[40.67,5.0,8.0,15.2,1968.0,140.8,0.0,1.0,1.0,3.0] |
+|2.35 |[75.0,5.0,9.0,21.1,814.0,55.2,3.0,0.0,0.0,1.0]    |
+|3.5  |[86.999,5.0,8.0,23.08,1461.0,63.1,0.0,0.0,0.0,8.0]|
+|17.5 |[36.0,8.0,5.0,11.36,2755.0,171.5,0.0,1.0,0.0,0.0] |
+|5.2  |[64.43,5.0,8.0,20.54,1598.0,103.6,0.0,0.0,0.0,4.0]|
+|1.95 |[65.932,5.0,9.0,22.3,1248.0,74.0,0.0,0.0,1.0,7.0] |
++-----+--------------------------------------------------+
 only showing top 10 rows
 
 
@@ -233,16 +233,16 @@ val corr = Correlation.corr(df3, "features", "pearson").head match {
    case Row(coeff: Matrix) => coeff
 }
 corr: org.apache.spark.ml.linalg.Matrix =
-1.0                   0.08278191382013933    ... (10 total)
-0.08278191382013933   1.0                    ...
-0.17304756550241057   -0.015204175743670301  ...
--0.06525999805346726  -0.2996488878799701    ...
-0.09047629292524847   0.39384940592837275    ...
-0.029931845279779875  0.10553944723207119    ...
--0.09888169866324424  -0.29812413609255006   ...
--0.02566271968984989  -0.07483760317989438   ...
-0.0853366246443019    0.012210037850503092   ...
-0.05329072718709084   0.0012317862165028418  ...
+1.0                   0.08278191382013429    ... (10 total)
+0.08278191382013429   1.0                    ...
+0.17304756550241052   -0.015204175743670301  ...
+-0.06525999805347799  -0.2996488878799701    ...
+0.09047629292524667   0.39384940592837275    ...
+0.02993184527977765   0.10553944723207119    ...
+-0.09888169866324527  -0.29812413609255006   ...
+-0.02566271968985057  -0.07483760317989438   ...
+0.08533662464430168   0.012210037850503092   ...
+0.05329072718709118   0.0012317862165028418  ...
 
 
 corr.toDense.rowIter.foreach( x => {
@@ -281,7 +281,7 @@ setOutputCol("scaledFeatures")
 
 import org.apache.spark.ml.regression.LinearRegression
 val lr = new LinearRegression
-lr.setFitIntercept(true).setFeaturesCol("scaledFeatures")
+lr.setMaxIter(100).setStepSize(0.1).setRegParam(0.01).setFitIntercept(true).setFeaturesCol("scaledFeatures")
 
 import org.apache.spark.ml.Pipeline
 val pipeline = new Pipeline().setStages(Array(dfInd1,dfInd2,dfInd3,dfInd4,dfOne1,dfOne2,dfOne3,dfOne4,va,stdScaler,lr))
@@ -291,13 +291,74 @@ val Array(trainingData, testData) = df2.randomSplit(Array(0.7,0.3),11L)
 trainingData.cache
 testData.cache
 
+val model = pipeline.fit(trainingData)
+
+import org.apache.spark.ml.regression.LinearRegressionModel
+val lrmodel = model.stages(10).asInstanceOf[LinearRegressionModel]
+
+// -----  metrics extracted from model
+
+lrmodel.summary.rootMeanSquaredError
+res7: Double = 6.079837237495615
+
+lrmodel.summary.r2
+res8: Double = 0.6921393677073047
+
+println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
+LR Model coefficients:
+0.0018450791262606713
+-1.065172419177903
+-0.9698649705223936
+-0.27895739746069725
+0.11999042713081928
+-6.812783733365083
+-9.59182196352029
+-5.368814980046723
+-5.5667703492841
+-2.9174003351760516
+0.4517858737277448
+-0.13369625614846853
+1.0406810698011544
+-0.44580091433913127
+2.0720596836353327
+0.021679433370393034
+2.089757231755838
+0.2694239416023383
+-1.008281988342251
+-0.19988663900084322
+0.8054070048047333
+0.6629842695404689
+1.5330989998040312
+
+
+// -----  metrics on test data
+
+val pred = model.transform(testData)
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+val bceval = new RegressionEvaluator()
+
+bceval.setMetricName("rmse").evaluate(pred)
+res10: Double = 6.261318050890886
+
+bceval.setMetricName("r2").evaluate(pred)
+res11: Double = 0.7152950064620104
+
+
 // ----- find best linear regression model
+
+import org.apache.spark.ml.regression.LinearRegression
+val lr = new LinearRegression
+lr.setFitIntercept(true).setFeaturesCol("scaledFeatures")
+
+import org.apache.spark.ml.Pipeline
+val pipeline = new Pipeline().setStages(Array(dfInd1,dfInd2,dfInd3,dfInd4,dfOne1,dfOne2,dfOne3,dfOne4,va,stdScaler,lr))
 
 import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
 
 val paramGrid = new ParamGridBuilder().
-addGrid(lr.regParam, Array(0.1, 0.01, 0.001)).
-addGrid(lr.maxIter, Array(100,200,300)).build()
+addGrid(lr.regParam, Array(1, 0.1, 0.01, 0.001)).
+addGrid(lr.maxIter, Array(10, 20, 40, 100)).build()
 
 import org.apache.spark.ml.evaluation.RegressionEvaluator
 
@@ -321,7 +382,7 @@ lrmodel.getRegParam
 res11: Double = 0.1
 
 lrmodel.getMaxIter
-res12: Int = 100
+res12: Int = 10
 
 lrmodel.getFitIntercept
 res4: Boolean = true
@@ -330,36 +391,37 @@ lrmodel.getStandardization
 res5: Boolean = true
 
 lrmodel.summary.rootMeanSquaredError
-res13: Double = 6.0824943988753795
+res17: Double = 6.082494398875378
 
 lrmodel.summary.r2
-res14: Double = 0.6918702111132775
+res18: Double = 0.6918702111132776
 
 println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
 LR Model coefficients:
-0.19037933935152807
--0.8377352557827417
--3.1421601025772823
--1.2934703886143841
-6.304616617451541
-0.31277876991718917
--1.0928469528451656
-0.18536581038009703
-0.07593518311289596
--1.3824203785754055
-0.12942049173108286
--0.10199744261373007
-0.11711231862638538
--0.1707494389530703
-0.6396942933918182
--0.011933932575626829
-0.6274616913788889
-0.0485555178960798
--0.3117066800805006
--0.07970533665450887
-0.19453622098927636
-0.13822726772651883
-0.33690146808515065
+0.19037933935152787
+-0.8377352557827424
+-3.1421601025772845
+-1.2934703886143868
+6.304616617451538
+0.3127787699171621
+-1.0928469528451934
+0.1853658103800919
+0.07593518311289348
+-1.3824203785754046
+0.12942049173108086
+-0.10199744261373196
+0.11711231862638467
+-0.17074943895307182
+0.6396942933918166
+-0.011933932575628477
+0.6274616913788875
+0.04855551789607801
+-0.31170668008050223
+-0.07970533665451021
+0.19453622098927503
+0.1382272677265174
+0.3369014680851492
+
 
 // -----  metrics on test data
 
@@ -368,7 +430,7 @@ val pred = bestmodel.transform(testData)
 val bceval = new RegressionEvaluator()
 
 bceval.setMetricName("rmse").evaluate(pred)
-res16: Double = 6.27667335838381
+res20: Double = 6.276673358383812
 
 bceval.setMetricName("r2").evaluate(pred)
-res17: Double = 0.7138968684592852
+res21: Double = 0.713896868459285

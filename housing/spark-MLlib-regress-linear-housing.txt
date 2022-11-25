@@ -1,5 +1,6 @@
 
 val rdd = sc.textFile("housing/housing.data").map( x => x.split(",")).map( x => x.map( y => y.trim().toDouble))
+rdd: org.apache.spark.rdd.RDD[Array[Double]] = MapPartitionsRDD[10] at map at <console>:24
 
 rdd.take(2)
 res4: Array[Array[Double]] = Array(Array(0.00632, 18.0, 2.31, 0.0, 0.538, 6.575, 65.2, 4.09, 1.0, 296.0, 15.3, 396.9, 4.98, 24.0), Array(0.02731, 0.0, 7.07, 0.0, 0.469, 6.421, 78.9, 4.9671, 2.0, 242.0, 17.8, 396.9, 9.14, 21.6))
@@ -7,13 +8,135 @@ res4: Array[Array[Double]] = Array(Array(0.00632, 18.0, 2.31, 0.0, 0.538, 6.575,
 rdd.count
 res3: Long = 506
 
+
+// Compute summary statistics
+
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.linalg.distributed.RowMatrix
+
+val vectors = rdd.map( x => Vectors.dense(x) )
+val matrix = new RowMatrix(vectors)
+val matrixSummary = matrix.computeColumnSummaryStatistics()
+
+// "CRIM","ZN","INDUS","CHAS","NOX","RM","AGE","DIS","RAD","TAX","PTRATIO","B","LSTAT","MEDV"
+matrixSummary.max.toArray.foreach( x => print("%.2f \t".format(x)))
+88.98   100.00  27.74   1.00    0.87    8.78    100.00  12.13   24.00   711.00  22.00   396.90    37.97   50.00
+
+matrixSummary.min.toArray.foreach( x => print("%.2f \t".format(x)))
+0.01    0.00    0.46    0.00    0.39    3.56    2.90    1.13    1.00    187.00  12.60   0.32      1.73    5.00
+
+matrixSummary.mean.toArray.foreach( x => print("%.2f \t".format(x)))
+3.61    11.36   11.14   0.07    0.55    6.28    68.57   3.80    9.55    408.24  18.46   356.67    12.65   22.53
+
+matrixSummary.variance.toArray.foreach( x => print("%.2f \t".format(x)))
+73.99   543.94  47.06   0.06    0.01    0.49    792.36  4.43    75.82   28404.76        4.69      8334.75         50.99   84.59
+
+// Column similarities
+
+val sim_matrix = matrix.columnSimilarities()
+
+import org.apache.spark.mllib.linalg.distributed.MatrixEntry
+val colsims = sim_matrix.entries.map{case MatrixEntry(row: Long, col:Long, sim:Double) => ((row,col),sim)}
+
+val rep = colsims.sortBy(_._1).map(x => ((x._1._1,x._1._2),x._2))
+
+var i = -1.0
+var k = 0.0
+var j = 0.0
+
+rep.foreach( x => {
+  val sim = x._2
+  if (x._1._1 != i) { 
+    println
+    k = 0.0
+	while (k < x._1._1) {
+	  print("        ")
+	  k = k + 1
+	}
+    i = x._1._1
+    j = i + 1
+    while (j < x._1._2) { 
+      print("0.0000  ")
+      j = j + 1
+    }
+    print(f"$sim%.4f  ")
+  } else {
+      j = j + 1
+      while (j < x._1._2) { 
+        print("0.0000  ")
+        j = j + 1
+      }
+      print(f"$sim%.4f  ")
+    }
+})
+"CRIM", "ZN",   "INDUS","CHAS", "NOX",  "RM",   "AGE",  "DIS",  "RAD",  "TAX",  "PTRATIO","B",  "LSTAT", "MEDV"
+0.0038  0.5266  0.0522  0.4587  0.3628  0.4820  0.1694  0.6749  0.5632  0.4161  0.2876  0.5439  0.2238
+        0.1219  0.0783  0.3343  0.4668  0.2114  0.6729  0.1353  0.2975  0.3944  0.4638  0.1995  0.5282
+                0.2558  0.9155  0.8236  0.9162  0.5650  0.8396  0.9313  0.8692  0.7788  0.8973  0.6929
+                        0.2754  0.2711  0.2750  0.1836  0.1896  0.2300  0.2476  0.2665  0.2035  0.3074
+                                0.9660  0.9624  0.7800  0.8078  0.9570  0.9767  0.9292  0.9120  0.8735
+                                        0.9094  0.8803  0.7190  0.9064  0.9825  0.9664  0.8322  0.9494
+                                                0.6717  0.8005  0.9286  0.9305  0.8707  0.9182  0.8027
+                                                        0.4851  0.7098  0.8556  0.8824  0.6435  0.8556
+                                                                0.9171  0.7707  0.6421  0.8056  0.5875
+                                                                        0.9386  0.8539  0.9072  0.7886
+                                                                                0.9571  0.8865  0.8974
+                                                                                        0.7994  0.9283
+                                                                                                0.6698
+
+// "INDUS" x "CHAS" = 0.9155
+// "INDUS" x "RM" = 0.9162
+// "INDUS" x "RAD" = 0.9313
+// "CHAS" x "NOX" = 0.9660
+// "CHAS" x "RM" = 0.9624
+// "CHAS" x "RAD" = 0.9570
+
+// -----  pearson correlation to check multicolinearity
+
+val corr = Statistics.corr(vectors,"pearson")
+
+corr.toArray
+res36: Array[Double] = Array(1.0, -0.20046921966254738, 0.40658341140625825, -0.05589158222224142, 0.4209717113924585, -0.21924670286250422, 0.3527342509013638, -0.37967008695102494, 0.6255051452626025, 0.5827643120325857, 0.2899455792795492, -0.3850639419942267, 0.4556214794479466, -0.38830460858680965, -0.20046921966254738, 1.0, -0.5338281863044679, -0.04269671929612168, -0.5166037078279891, 0.31199058737408386, -0.5695373420992116, 0.6644082227621098, -0.3119478260185366, -0.31456332467759984, -0.39167854793624945, 0.1755203173828279, -0.41299457452700333, 0.3604453424505422, 0.40658341140625825, -0.5338281863044679, 1.0, 0.06293802748966472, 0.7636514469209121, -0.39167585265682403, 0.6447785113552528, -0.7080269887427686, 0.5951292746038515, 0.7207601799515483, 0.3832475564289561, ...
+
+val numlines = corr.numRows
+val numcols  = corr.numCols
+var i = 0
+var j = 0
+
+corr.toArray.foreach( x => {
+     j = j + 1
+     print(f"$x%.3f\t")
+	 if ( j == numcols ) {
+	    j = 0
+		println
+	 }
+ })
+// "CRIM","ZN", "INDUS","CHAS", "NOX",  "RM",   "AGE",  "DIS",  "RAD",  "TAX",  "PTRATIO","B",  "LSTAT", "MEDV"
+1.000   -0.200  0.407   -0.056  0.421   -0.219  0.353   -0.380  0.626   0.583   0.290   -0.385  0.456   -0.388
+-0.200  1.000   -0.534  -0.043  -0.517  0.312   -0.570  0.664   -0.312  -0.315  -0.392  0.176   -0.413  0.360
+0.407   -0.534  1.000   0.063   0.764   -0.392  0.645   -0.708  0.595   0.721   0.383   -0.357  0.604   -0.484
+-0.056  -0.043  0.063   1.000   0.091   0.091   0.087   -0.099  -0.007  -0.036  -0.122  0.049   -0.054  0.175
+0.421   -0.517  0.764   0.091   1.000   -0.302  0.731   -0.769  0.611   0.668   0.189   -0.380  0.591   -0.427
+-0.219  0.312   -0.392  0.091   -0.302  1.000   -0.240  0.205   -0.210  -0.292  -0.356  0.128   -0.614  0.695
+0.353   -0.570  0.645   0.087   0.731   -0.240  1.000   -0.748  0.456   0.506   0.262   -0.274  0.602   -0.377
+-0.380  0.664   -0.708  -0.099  -0.769  0.205   -0.748  1.000   -0.495  -0.534  -0.232  0.292   -0.497  0.250
+0.626   -0.312  0.595   -0.007  0.611   -0.210  0.456   -0.495  1.000   0.910   0.465   -0.444  0.489   -0.382
+0.583   -0.315  0.721   -0.036  0.668   -0.292  0.506   -0.534  0.910   1.000   0.461   -0.442  0.544   -0.469
+0.290   -0.392  0.383   -0.122  0.189   -0.356  0.262   -0.232  0.465   0.461   1.000   -0.177  0.374   -0.508
+-0.385  0.176   -0.357  0.049   -0.380  0.128   -0.274  0.292   -0.444  -0.442  -0.177  1.000   -0.366  0.333
+0.456   -0.413  0.604   -0.054  0.591   -0.614  0.602   -0.497  0.489   0.544   0.374   -0.366  1.000   -0.738
+-0.388  0.360   -0.484  0.175   -0.427  0.695   -0.377  0.250   -0.382  -0.469  -0.508  0.333   -0.738  1.000
+
+// RAD x TAX = 0.910 can be considered multicolinear, so RAD will be removed from the model
+
+
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.regression.LabeledPoint
 
 val data = rdd.map(x => {
   val arr_size = x.size - 1 
   val l = x(arr_size)
-  val f = x.slice(0,arr_size)
+  val f = x.slice(0,8) ++ x.slice(9,arr_size)
   LabeledPoint(l,Vectors.dense(f))
 })
 
@@ -22,61 +145,30 @@ val trainSet = sets(0)
 val testSet = sets(1)
 
 trainSet.cache
+testSet.cache
 
----- MLlib Linear regression --------------
+// ----- building the logistic regression model
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.mllib.regression.LinearRegressionWithSGD
 import org.apache.spark.mllib.evaluation.RegressionMetrics
 
-def iterateLRwSGD(iterNums:Array[Int], stepSizes:Array[Double], train:RDD[LabeledPoint], test:RDD[LabeledPoint]) = {
-  println("iter, step  -> RMSE, MSE") 
-  for(numIter <- iterNums; step <- stepSizes) {
-    val model = new LinearRegressionWithSGD
-	model.setIntercept(true)
-	model.optimizer.setNumIterations(numIter).setStepSize(step)
-	val lr = model.run(train)
-    val validPredicts = test.map(x => (lr.predict(x.features),x.label))
-    val metrics = new RegressionMetrics(validPredicts)
-    println("%d, %7.5f -> %.4f, %.4f".format(numIter, step, metrics.rootMeanSquaredError, metrics.meanSquaredError))
-  }
-}
+val model = new LinearRegressionWithSGD
 
-iterateLRwSGD(Array(100,300,500),Array(1, 0.1, 0.01, 0.001), trainSet, testSet)
-iter, step  -> RMSE, MSE
-100, 1.00000 -> NaN, NaN
-100, 0.10000 -> NaN, NaN
-100, 0.01000 -> Infinity, Infinity
-100, 0.00100 -> Infinity, Infinity
-300, 1.00000 -> NaN, NaN
-300, 0.10000 -> NaN, NaN
-300, 0.01000 -> NaN, NaN
-300, 0.00100 -> NaN, NaN
-500, 1.00000 -> NaN, NaN
-500, 0.10000 -> NaN, NaN
-500, 0.01000 -> NaN, NaN
-500, 0.00100 -> NaN, NaN
+model.setIntercept(true)
+model.optimizer.setNumIterations(100).setRegParam(0.01)
 
----- Analyzing statistics for standardization ---------------------
+val lr = model.run(trainSet)
 
-import org.apache.spark.mllib.linalg.Matrix
-import org.apache.spark.mllib.linalg.distributed.RowMatrix
+val validPredicts = testSet.map(x => (lr.predict(x.features),x.label))
 
-val vectors = trainSet.map{ case LabeledPoint(x,y) => y }
-val matrix = new RowMatrix(vectors)
-val matrixSummary = matrix.computeColumnSummaryStatistics()
+val metrics = new RegressionMetrics(validPredicts)
 
-matrixSummary.max
-res7: org.apache.spark.mllib.linalg.Vector = [73.5341,100.0,27.74,1.0,0.871,8.78,100.0,10.7103,24.0,711.0,22.0,396.9,37.97]
+metrics.rootMeanSquaredError
+res23: Double = NaN
 
-matrixSummary.min
-res8: org.apache.spark.mllib.linalg.Vector = [0.00632,0.0,0.74,0.0,0.385,3.561,6.0,1.1296,1.0,188.0,12.6,0.32,1.73]
-
-matrixSummary.mean
-res9: org.apache.spark.mllib.linalg.Vector = [3.9937140345821334,10.280979827089334,11.387319884726224,0.07780979827089338,0.5619599423631126,6.246371757925073,69.97435158501438,3.6808164265129677,10.03170028818444,418.8097982708933,18.610662824207484,350.49723342939484,13.058299711815565]
-
-matrixSummary.variance
-res10: org.apache.spark.mllib.linalg.Vector = [74.0087595205224,521.9851285169328,47.09815435691561,0.07196281921007479,0.014315969633522673,0.509278985674068,775.9463633789208,4.260354171492396,81.15217137812137,29549.998400826244,4.344307940897195,9706.51083856675,53.38754941280339]
+metrics.r2
+res24: Double = NaN
 
 ----- Standardizing features ------------------------------
 
@@ -87,6 +179,31 @@ val trainScaled = trainSet.map(lp => LabeledPoint(lp.label,scaler.transform(lp.f
 val testScaled = testSet.map(lp => LabeledPoint(lp.label,scaler.transform(lp.features)))
 
 trainScaled.cache
+testScaled.cache
+
+// ----- building the logistic regression model
+
+import org.apache.spark.rdd.RDD
+import org.apache.spark.mllib.regression.LinearRegressionWithSGD
+import org.apache.spark.mllib.evaluation.RegressionMetrics
+
+val model = new LinearRegressionWithSGD
+
+model.setIntercept(true)
+model.optimizer.setNumIterations(100).setRegParam(0.01)
+
+val lr = model.run(trainScaled)
+
+val validPredicts = testScaled.map(x => (lr.predict(x.features),x.label))
+
+val metrics = new RegressionMetrics(validPredicts)
+
+metrics.rootMeanSquaredError
+res49: Double = 4.343529233121831
+
+metrics.r2
+res50: Double = 0.7952803404607468
+
 
 ---- MLlib Linear regression --------------
 
@@ -94,30 +211,84 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.mllib.regression.LinearRegressionWithSGD
 import org.apache.spark.mllib.evaluation.RegressionMetrics
 
-def iterateLRwSGD(iterNums:Array[Int], stepSizes:Array[Double], train:RDD[LabeledPoint], test:RDD[LabeledPoint]) = {
-  println("iter, step  -> RMSE, MSE") 
-  for(numIter <- iterNums; step <- stepSizes) {
+def iterateLRwSGD(iterNums:Array[Int], regSizes:Array[Double], train:RDD[LabeledPoint], test:RDD[LabeledPoint]) = {
+  println("iter, reg  -> RMSE, MSE, R2") 
+  for(numIter <- iterNums; reg <- regSizes) {
     val model = new LinearRegressionWithSGD
 	model.setIntercept(true)
-	model.optimizer.setNumIterations(numIter).setStepSize(step)
+	model.optimizer.setNumIterations(numIter).setRegParam(reg)
 	val lr = model.run(train)
     val validPredicts = test.map(x => (lr.predict(x.features),x.label))
     val metrics = new RegressionMetrics(validPredicts)
-    println("%d, %7.5f -> %.4f, %.4f".format(numIter, step, metrics.rootMeanSquaredError, metrics.meanSquaredError))
+    println("%d, %7.5f -> %.4f, %.4f, %.4f".format(numIter, reg, metrics.rootMeanSquaredError, metrics.meanSquaredError, metrics.r2))
   }
 }
 
-iterateLRwSGD(Array(100,300,500),Array(1, 0.1, 0.01, 0.001), trainScaled, testScaled)
-iter, step  -> RMSE, MSE
-100, 1.00000 -> 4.3040, 18.5241 *
-100, 0.10000 -> 5.4506, 29.7088
-100, 0.01000 -> 19.4179, 377.0537 
-100, 0.00100 -> 23.8432, 568.4999
-300, 1.00000 -> 4.3040, 18.5241
-300, 0.10000 -> 4.8687, 23.7047
-300, 0.01000 -> 16.6867, 278.4449
-300, 0.00100 -> 23.5317, 553.7430
-500, 1.00000 -> 4.3040, 18.5241
-500, 0.10000 -> 4.8687, 23.7047
-500, 0.01000 -> 16.1121, 259.5987
-500, 0.00100 -> 23.5317, 553.7430
+iterateLRwSGD(Array(10, 20, 40, 100),Array(1, 0.1, 0.01, 0.001), trainSet, testSet)
+iter, reg  -> RMSE, MSE, R2
+10, 1.00000 -> 108968551821901180000000000000000000000000000000000000.0000, 11874145286162365000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -128847623139451330000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
+10, 0.10000 -> 108968551821901180000000000000000000000000000000000000.0000, 11874145286162365000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -128847623139451330000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
+10, 0.01000 -> 108968551821901180000000000000000000000000000000000000.0000, 11874145286162365000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -128847623139451330000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
+10, 0.00100 -> 108968551821901180000000000000000000000000000000000000.0000, 11874145286162365000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -128847623139451330000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
+20, 1.00000 -> 1428521606889923600000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, 2040673981351369600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -22143572085652316000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
+20, 0.10000 -> 1428521606889923600000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, 2040673981351369600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -22143572085652316000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
+20, 0.01000 -> 1428521606889923600000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, 2040673981351369600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -22143572085652316000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
+20, 0.00100 -> 1428521606889923600000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, 2040673981351369600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -22143572085652316000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
+40, 1.00000 -> Infinity, Infinity, -Infinity
+40, 0.10000 -> Infinity, Infinity, -Infinity
+40, 0.01000 -> Infinity, Infinity, -Infinity
+40, 0.00100 -> Infinity, Infinity, -Infinity
+100, 1.00000 -> NaN, NaN, NaN
+100, 0.10000 -> NaN, NaN, NaN
+100, 0.01000 -> NaN, NaN, NaN
+100, 0.00100 -> NaN, NaN, NaN
+
+
+----- Standardizing features ------------------------------
+
+import org.apache.spark.mllib.feature.StandardScaler
+val vectors = trainSet.map(lp => lp.features)
+val scaler = new StandardScaler(withMean = true, withStd = true).fit(vectors)
+val trainScaled = trainSet.map(lp => LabeledPoint(lp.label,scaler.transform(lp.features)))
+val testScaled = testSet.map(lp => LabeledPoint(lp.label,scaler.transform(lp.features)))
+
+trainScaled.cache
+testScaled.cache
+
+---- MLlib Linear regression --------------
+
+import org.apache.spark.rdd.RDD
+import org.apache.spark.mllib.regression.LinearRegressionWithSGD
+import org.apache.spark.mllib.evaluation.RegressionMetrics
+
+def iterateLRwSGD(iterNums:Array[Int], regSizes:Array[Double], train:RDD[LabeledPoint], test:RDD[LabeledPoint]) = {
+  println("iter, reg  -> RMSE, MSE, R2") 
+  for(numIter <- iterNums; reg <- regSizes) {
+    val model = new LinearRegressionWithSGD
+	model.setIntercept(true)
+	model.optimizer.setNumIterations(numIter).setRegParam(reg)
+	val lr = model.run(train)
+    val validPredicts = test.map(x => (lr.predict(x.features),x.label))
+    val metrics = new RegressionMetrics(validPredicts)
+    println("%d, %7.5f -> %.4f, %.4f, %.4f".format(numIter, reg, metrics.rootMeanSquaredError, metrics.meanSquaredError, metrics.r2))
+  }
+}
+
+iterateLRwSGD(Array(10, 20, 40, 100),Array(1, 0.1, 0.01, 0.001), trainScaled, testScaled)
+iter, reg  -> RMSE, MSE, R2
+10, 1.00000 -> 426.8845, 182230.3470, -1976.4010
+10, 0.10000 -> 426.8845, 182230.3470, -1976.4010
+10, 0.01000 -> 426.8845, 182230.3470, -1976.4010
+10, 0.00100 -> 426.8845, 182230.3470, -1976.4010
+20, 1.00000 -> 4.3241, 18.6977, 0.7971
+20, 0.10000 -> 4.3241, 18.6977, 0.7971
+20, 0.01000 -> 4.3241, 18.6977, 0.7971
+20, 0.00100 -> 4.3241, 18.6977, 0.7971
+40, 1.00000 -> 4.3435, 18.8662, 0.7953
+40, 0.10000 -> 4.3435, 18.8662, 0.7953
+40, 0.01000 -> 4.3435, 18.8662, 0.7953
+40, 0.00100 -> 4.3435, 18.8662, 0.7953
+100, 1.00000 -> 4.3435, 18.8662, 0.7953
+100, 0.10000 -> 4.3435, 18.8662, 0.7953
+100, 0.01000 -> 4.3435, 18.8662, 0.7953
+100, 0.00100 -> 4.3435, 18.8662, 0.7953

@@ -109,7 +109,7 @@ corr.toDense.rowIter.foreach( x => {
   }
   println
 })
-// "CRIM","ZN","INDUS","CHAS","NOX","RM","AGE","DIS","RAD","TAX","PTRATIO","B","LSTAT"
+// "CRIM","ZN","INDUS", "CHAS", "NOX",  "RM",   "AGE",  "DIS",  "RAD",  "TAX",  "PTRATIO","B",  "LSTAT"
 1.000   -0.200  0.407   -0.056  0.421   -0.219  0.353   -0.380  0.626   0.583   0.290   -0.385  0.456
 -0.200  1.000   -0.534  -0.043  -0.517  0.312   -0.570  0.664   -0.312  -0.315  -0.392  0.176   -0.413
 0.407   -0.534  1.000   0.063   0.764   -0.392  0.645   -0.708  0.595   0.721   0.383   -0.357  0.604
@@ -142,10 +142,9 @@ setOutputCol("scaledFeatures")
 
 import org.apache.spark.ml.regression.LinearRegression
 val lr = new LinearRegression
-lr.setFitIntercept(true).setFeaturesCol("scaledFeatures")
+lr.setRegParam(0.01).setMaxIter(100).setFitIntercept(true).setFeaturesCol("scaledFeatures")
 
 import org.apache.spark.ml.Pipeline
-
 val pipeline = new Pipeline().setStages(Array(va,stdScaler,lr))
 
 val Array(trainingData, testData) = df1.randomSplit(Array(0.7,0.3),11L)
@@ -153,13 +152,62 @@ val Array(trainingData, testData) = df1.randomSplit(Array(0.7,0.3),11L)
 trainingData.cache
 testData.cache
 
+val model = pipeline.fit(trainingData)
+
+import org.apache.spark.ml.regression.LinearRegressionModel
+val lrmodel = model.stages(2).asInstanceOf[LinearRegressionModel]
+
+// -----  metrics extracted from model
+
+lrmodel.summary.rootMeanSquaredError
+res6: Double = 4.918627701000639
+
+lrmodel.summary.r2
+res7: Double = 0.7205273599399451
+
+println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
+LR Model coefficients:
+-0.8259591294503773
+0.91009077499983
+-1.1319580886427711
+0.4566065347788466
+-1.7804466337800346
+2.7601251022408526
+-0.0963516108242251
+-3.521127726284663
+0.534868592417649
+-1.6697598370750222
+0.7786299832774886
+-3.7656026913247365
+
+// -----  metrics on test data
+
+val pred = model.transform(testData)
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+val bceval = new RegressionEvaluator()
+
+bceval.setMetricName("rmse").evaluate(pred)
+res12: Double = 4.569012200919668
+
+bceval.setMetricName("r2").evaluate(pred)
+res13: Double = 0.7371322405086183
+
+
 // ----- find best linear regression model
+
+import org.apache.spark.ml.regression.LinearRegression
+val lr = new LinearRegression
+lr.setFitIntercept(true).setFeaturesCol("scaledFeatures")
+
+import org.apache.spark.ml.Pipeline
+val pipeline = new Pipeline().setStages(Array(va,stdScaler,lr))
 
 import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
 
 val paramGrid = new ParamGridBuilder().
 addGrid(lr.regParam, Array(1, 0.1, 0.01, 0.001)).
-addGrid(lr.maxIter, Array(100,300,500)).build()
+addGrid(lr.maxIter, Array(10, 20, 40, 100)).build()
 
 import org.apache.spark.ml.evaluation.RegressionEvaluator
 
@@ -183,7 +231,7 @@ lrmodel.getRegParam
 res1: Double = 0.1
 
 lrmodel.getMaxIter
-res2: Int = 100
+res2: Int = 10
 
 lrmodel.getFitIntercept
 res4: Boolean = true
@@ -192,10 +240,10 @@ lrmodel.getStandardization
 res5: Boolean = true
 
 lrmodel.summary.rootMeanSquaredError
-res14: Double = 4.91977716147573
+res19: Double = 4.91977716147573
 
 lrmodel.summary.r2
-res15: Double = 0.7203967217580702
+res20: Double = 0.7203967217580702
 
 println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
 LR Model coefficients:
@@ -219,7 +267,7 @@ val pred = bestmodel.transform(testData)
 val bceval = new RegressionEvaluator()
 
 bceval.setMetricName("rmse").evaluate(pred)
-res8: Double = 4.55605120037877
+res22: Double = 4.55605120037877
 
 bceval.setMetricName("r2").evaluate(pred)
-res9: Double = 0.7386214887891369
+res23: Double = 0.7386214887891369
