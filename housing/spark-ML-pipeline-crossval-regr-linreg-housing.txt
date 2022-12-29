@@ -127,7 +127,7 @@ corr.toDense.rowIter.foreach( x => {
 // RAD x TAX = 0.910 can be considered multicolinear, so RAD will be removed from the model
 
 
-// ----- building the logistic regression model
+// ----- building the linear regression model
 
 import org.apache.spark.ml.feature.VectorAssembler
 

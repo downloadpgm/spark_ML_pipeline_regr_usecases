@@ -1,6 +1,5 @@
 
 val rdd = sc.textFile("housing/housing.data").map( x => x.split(",")).map( x => x.map( y => y.trim().toDouble))
-rdd: org.apache.spark.rdd.RDD[Array[Double]] = MapPartitionsRDD[10] at map at <console>:24
 
 rdd.take(2)
 res4: Array[Array[Double]] = Array(Array(0.00632, 18.0, 2.31, 0.0, 0.538, 6.575, 65.2, 4.09, 1.0, 296.0, 15.3, 396.9, 4.98, 24.0), Array(0.02731, 0.0, 7.07, 0.0, 0.469, 6.421, 78.9, 4.9671, 2.0, 242.0, 17.8, 396.9, 9.14, 21.6))
@@ -129,6 +128,7 @@ corr.toArray.foreach( x => {
 
 // RAD x TAX = 0.910 can be considered multicolinear, so RAD will be removed from the model
 
+---- Splitting dataset as train/test sets  --------------
 
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.regression.LabeledPoint
@@ -147,29 +147,6 @@ val testSet = sets(1)
 trainSet.cache
 testSet.cache
 
-// ----- building the logistic regression model
-
-import org.apache.spark.rdd.RDD
-import org.apache.spark.mllib.regression.LinearRegressionWithSGD
-import org.apache.spark.mllib.evaluation.RegressionMetrics
-
-val model = new LinearRegressionWithSGD
-
-model.setIntercept(true)
-model.optimizer.setNumIterations(100).setRegParam(0.01)
-
-val lr = model.run(trainSet)
-
-val validPredicts = testSet.map(x => (lr.predict(x.features),x.label))
-
-val metrics = new RegressionMetrics(validPredicts)
-
-metrics.rootMeanSquaredError
-res23: Double = NaN
-
-metrics.r2
-res24: Double = NaN
-
 ----- Standardizing features ------------------------------
 
 import org.apache.spark.mllib.feature.StandardScaler
@@ -181,9 +158,8 @@ val testScaled = testSet.map(lp => LabeledPoint(lp.label,scaler.transform(lp.fea
 trainScaled.cache
 testScaled.cache
 
-// ----- building the logistic regression model
+// ----- building the linear regression model
 
-import org.apache.spark.rdd.RDD
 import org.apache.spark.mllib.regression.LinearRegressionWithSGD
 import org.apache.spark.mllib.evaluation.RegressionMetrics
 
@@ -215,59 +191,9 @@ def iterateLRwSGD(iterNums:Array[Int], regSizes:Array[Double], train:RDD[Labeled
   println("iter, reg  -> RMSE, MSE, R2") 
   for(numIter <- iterNums; reg <- regSizes) {
     val model = new LinearRegressionWithSGD
-	model.setIntercept(true)
-	model.optimizer.setNumIterations(numIter).setRegParam(reg)
-	val lr = model.run(train)
-    val validPredicts = test.map(x => (lr.predict(x.features),x.label))
-    val metrics = new RegressionMetrics(validPredicts)
-    println("%d, %7.5f -> %.4f, %.4f, %.4f".format(numIter, reg, metrics.rootMeanSquaredError, metrics.meanSquaredError, metrics.r2))
-  }
-}
-
-iterateLRwSGD(Array(10, 20, 40, 100),Array(1, 0.1, 0.01, 0.001), trainSet, testSet)
-iter, reg  -> RMSE, MSE, R2
-10, 1.00000 -> 108968551821901180000000000000000000000000000000000000.0000, 11874145286162365000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -128847623139451330000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
-10, 0.10000 -> 108968551821901180000000000000000000000000000000000000.0000, 11874145286162365000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -128847623139451330000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
-10, 0.01000 -> 108968551821901180000000000000000000000000000000000000.0000, 11874145286162365000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -128847623139451330000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
-10, 0.00100 -> 108968551821901180000000000000000000000000000000000000.0000, 11874145286162365000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -128847623139451330000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
-20, 1.00000 -> 1428521606889923600000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, 2040673981351369600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -22143572085652316000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
-20, 0.10000 -> 1428521606889923600000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, 2040673981351369600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -22143572085652316000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
-20, 0.01000 -> 1428521606889923600000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, 2040673981351369600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -22143572085652316000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
-20, 0.00100 -> 1428521606889923600000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, 2040673981351369600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000, -22143572085652316000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0000
-40, 1.00000 -> Infinity, Infinity, -Infinity
-40, 0.10000 -> Infinity, Infinity, -Infinity
-40, 0.01000 -> Infinity, Infinity, -Infinity
-40, 0.00100 -> Infinity, Infinity, -Infinity
-100, 1.00000 -> NaN, NaN, NaN
-100, 0.10000 -> NaN, NaN, NaN
-100, 0.01000 -> NaN, NaN, NaN
-100, 0.00100 -> NaN, NaN, NaN
-
-
------ Standardizing features ------------------------------
-
-import org.apache.spark.mllib.feature.StandardScaler
-val vectors = trainSet.map(lp => lp.features)
-val scaler = new StandardScaler(withMean = true, withStd = true).fit(vectors)
-val trainScaled = trainSet.map(lp => LabeledPoint(lp.label,scaler.transform(lp.features)))
-val testScaled = testSet.map(lp => LabeledPoint(lp.label,scaler.transform(lp.features)))
-
-trainScaled.cache
-testScaled.cache
-
----- MLlib Linear regression --------------
-
-import org.apache.spark.rdd.RDD
-import org.apache.spark.mllib.regression.LinearRegressionWithSGD
-import org.apache.spark.mllib.evaluation.RegressionMetrics
-
-def iterateLRwSGD(iterNums:Array[Int], regSizes:Array[Double], train:RDD[LabeledPoint], test:RDD[LabeledPoint]) = {
-  println("iter, reg  -> RMSE, MSE, R2") 
-  for(numIter <- iterNums; reg <- regSizes) {
-    val model = new LinearRegressionWithSGD
-	model.setIntercept(true)
-	model.optimizer.setNumIterations(numIter).setRegParam(reg)
-	val lr = model.run(train)
+    model.setIntercept(true)
+    model.optimizer.setNumIterations(numIter).setRegParam(reg)
+    val lr = model.run(train)
     val validPredicts = test.map(x => (lr.predict(x.features),x.label))
     val metrics = new RegressionMetrics(validPredicts)
     println("%d, %7.5f -> %.4f, %.4f, %.4f".format(numIter, reg, metrics.rootMeanSquaredError, metrics.meanSquaredError, metrics.r2))
@@ -280,7 +206,7 @@ iter, reg  -> RMSE, MSE, R2
 10, 0.10000 -> 426.8845, 182230.3470, -1976.4010
 10, 0.01000 -> 426.8845, 182230.3470, -1976.4010
 10, 0.00100 -> 426.8845, 182230.3470, -1976.4010
-20, 1.00000 -> 4.3241, 18.6977, 0.7971
+20, 1.00000 -> 4.3241, 18.6977, 0.7971 *
 20, 0.10000 -> 4.3241, 18.6977, 0.7971
 20, 0.01000 -> 4.3241, 18.6977, 0.7971
 20, 0.00100 -> 4.3241, 18.6977, 0.7971
@@ -292,3 +218,34 @@ iter, reg  -> RMSE, MSE, R2
 100, 0.10000 -> 4.3435, 18.8662, 0.7953
 100, 0.01000 -> 4.3435, 18.8662, 0.7953
 100, 0.00100 -> 4.3435, 18.8662, 0.7953
+
+val model = new LinearRegressionWithSGD
+
+model.setIntercept(true)
+model.optimizer.setNumIterations(20).setRegParam(1.0)
+
+val lr = model.run(trainScaled)
+
+val validPredicts = testScaled.map(x => (lr.predict(x.features),x.label))
+
+val metrics = new RegressionMetrics(validPredicts)
+
+metrics.rootMeanSquaredError
+res16: Double = 4.324078088389046
+
+metrics.r2
+res17: Double = 0.7971097816219821
+
+lr.weights.toArray.map( x => x.abs ).zipWithIndex.sortBy(-_._1).foreach(println)
+(3.876692031480235,11)
+(2.8123621013354883,7)
+(2.373108282800229,5)
+(1.6402735121191676,4)
+(1.508757181606165,9)
+(0.9875654173366863,1)
+(0.9098467832745402,10)
+(0.7049060370739636,3)
+(0.6959079549601673,2)
+(0.3955895071892599,0)
+(0.39284709564037074,8)
+(0.0965368225471977,6)
