@@ -1,0 +1,391 @@
+
+val df = spark.read.format("csv").option("inferSchema","true").load("staging/used_cars_price_train-data.csv").toDF("Row","Name","Location","Year","Kilometers_Driven","Fuel_Type","Transmission","Owner_Type","Mileage","Engine","Power","Seats","New_Price","Price")
+
+df.printSchema
+root
+ |-- Row: integer (nullable = true)
+ |-- Name: string (nullable = true)
+ |-- Location: string (nullable = true)
+ |-- Year: integer (nullable = true)
+ |-- Kilometers_Driven: integer (nullable = true)
+ |-- Fuel_Type: string (nullable = true)
+ |-- Transmission: string (nullable = true)
+ |-- Owner_Type: string (nullable = true)
+ |-- Mileage: string (nullable = true)
+ |-- Engine: string (nullable = true)
+ |-- Power: string (nullable = true)
+ |-- Seats: double (nullable = true)
+ |-- New_Price: string (nullable = true)
+ |-- Price: double (nullable = true)
+
+df.describe().show
++-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+
+|summary|               Row|                Name| Location|              Year|Kilometers_Driven|Fuel_Type|Transmission|Owner_Type| Mileage| Engine|   Power|             Seats| New_Price|             Price|
++-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+
+|  count|              6019|                6019|     6019|              6019|             6019|     6019|        6019|      6019|    6017|   5983|    5983|              5977|       824|              6019|
+|   mean|            3009.0|                null|     null|2013.3581990363848|58738.38029573019|     null|        null|      null|    null|   null|    null| 5.278735151413753|      null| 9.479468350224273|
+| stddev|1737.6799666988932|                null|     null|  3.26974211609139|91268.84320624865|     null|        null|      null|    null|   null|    null|0.8088395547482933|      null|11.187917112455484|
+|    min|                 0|Ambassador Classi...|Ahmedabad|              1998|              171|      CNG|   Automatic|     First|0.0 kmpl|1047 CC| 100 bhp|               0.0|      1 Cr|              0.44|
+|    max|              6018|Volvo XC90 2007-2...|     Pune|              2019|          6500000|   Petrol|      Manual|     Third|9.9 kmpl| 999 CC|null bhp|              10.0|99.92 Lakh|             160.0|
++-------+------------------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+----------+------------------+
+
+df.columns.map( colname => {
+   val freq = df.select(colname).distinct.count
+   println(colname + ": " + freq) 
+})
+Row: 6019
+Name: 1876                                                                      
+Location: 11
+Year: 22                                                                        
+Kilometers_Driven: 3093                                                         
+Fuel_Type: 5
+Transmission: 2
+Owner_Type: 4
+Mileage: 443
+Engine: 147
+Power: 373
+Seats: 10
+New_Price: 541
+Price: 1373
+
+val listcols = Array("Mileage","Engine","Power","Seats")
+
+listcols.map( colname => {
+   val freq = df.select(colname).distinct.count
+   println("Frequency distribuition for " + colname)
+   df.groupBy(colname).count.orderBy(desc("count")).show
+})
+Frequency distribuition for Mileage                                             
++----------+-----+                                                              
+|   Mileage|count|
++----------+-----+
+| 18.9 kmpl|  172|
+| 17.0 kmpl|  172|
+| 18.6 kmpl|  119|
+|20.36 kmpl|   88|
+| 21.1 kmpl|   86|
+| 17.8 kmpl|   85|
+| 16.0 kmpl|   76|
+| 12.8 kmpl|   72|
+| 20.0 kmpl|   70|
+| 18.0 kmpl|   69|
+|  0.0 kmpl|   68|
+| 18.5 kmpl|   67|
+| 13.0 kmpl|   67|
+| 22.7 kmpl|   66|
+| 15.1 kmpl|   64|
+| 16.8 kmpl|   59|
+|12.99 kmpl|   58|
+|16.47 kmpl|   58|
+| 23.1 kmpl|   52|
+| 25.8 kmpl|   51|
++----------+-----+
+only showing top 20 rows
+
+Frequency distribuition for Engine                                              
++-------+-----+                                                                 
+| Engine|count|
++-------+-----+
+|1197 CC|  606|
+|1248 CC|  512|
+|1498 CC|  304|
+| 998 CC|  259|
+|2179 CC|  240|
+|1497 CC|  229|
+|1198 CC|  227|
+|1968 CC|  216|
+|1995 CC|  183|
+|1461 CC|  152|
+|2143 CC|  149|
+|1582 CC|  145|
+|1199 CC|  143|
+|1598 CC|  141|
+|1396 CC|  139|
+| 796 CC|  129|
+|2494 CC|  121|
+|1086 CC|  108|
+|1591 CC|   94|
+|2993 CC|   90|
++-------+-----+
+only showing top 20 rows
+
+Frequency distribuition for Power
++---------+-----+                                                               
+|    Power|count|
++---------+-----+
+|   74 bhp|  235|
+| 98.6 bhp|  131|
+| 73.9 bhp|  125|
+|  140 bhp|  123|
+| 78.9 bhp|  111|
+| null bhp|  107|
+| 67.1 bhp|  107|
+|67.04 bhp|  107|
+|   82 bhp|  101|
+| 88.5 bhp|  100|
+|117.3 bhp|   93|
+|  118 bhp|   90|
+|121.3 bhp|   88|
+|  190 bhp|   79|
+|126.2 bhp|   78|
+|  170 bhp|   77|
+|   70 bhp|   75|
+| 88.7 bhp|   75|
+|   80 bhp|   74|
+| 86.8 bhp|   74|
++---------+-----+
+only showing top 20 rows
+
+Frequency distribuition for Seats                                               
++-----+-----+                                                                   
+|Seats|count|
++-----+-----+
+|  5.0| 5014|
+|  7.0|  674|
+|  8.0|  134|
+|  4.0|   99|
+| null|   42|
+|  6.0|   31|
+|  2.0|   16|
+| 10.0|    5|
+|  9.0|    3|
+|  0.0|    1|
++-----+-----+
+
+val df1 = df.na.fill(Map("Mileage" -> "18.9 kmpl", "Engine" -> "1197 CC", "Power" -> "74 bhp", "Seats" -> 5.0)).
+          na.replace("Power", Map("null bhp" -> "74 bhp"))
+
+import org.apache.spark.sql.types._
+
+val df2 = df1.withColumn("age", (lit(2021)-'Year).cast(DoubleType)).
+          withColumn("mileage_aux", regexp_extract('Mileage,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+          withColumn("engine_aux", regexp_extract('Engine,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+          withColumn("power_aux", regexp_extract('Power,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+          withColumn("km_1000", 'Kilometers_Driven / 1000).
+          drop("Row","New_Price")
+
+df2.printSchema
+root
+ |-- Name: string (nullable = true)
+ |-- Location: string (nullable = true)
+ |-- Year: integer (nullable = true)
+ |-- Kilometers_Driven: integer (nullable = true)
+ |-- Fuel_Type: string (nullable = true)
+ |-- Transmission: string (nullable = true)
+ |-- Owner_Type: string (nullable = true)
+ |-- Mileage: string (nullable = false)
+ |-- Engine: string (nullable = false)
+ |-- Power: string (nullable = false)
+ |-- Seats: double (nullable = false)
+ |-- Price: double (nullable = true)
+ |-- age: double (nullable = true)
+ |-- mileage_aux: double (nullable = true)
+ |-- engine_aux: double (nullable = true)
+ |-- power_aux: double (nullable = true)
+ |-- km_1000: double (nullable = true)
+
+df2.describe().show
++-------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+------------------+------------------+------------------+------------------+-----------------+-----------------+
+|summary|                Name| Location|              Year|Kilometers_Driven|Fuel_Type|Transmission|Owner_Type| Mileage| Engine|   Power|             Seats|             Price|               age|       mileage_aux|        engine_aux|        power_aux|          km_1000|
++-------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+------------------+------------------+------------------+------------------+-----------------+-----------------+
+|  count|                6019|     6019|              6019|             6019|     6019|        6019|      6019|    6019|   6019|    6019|              6019|              6019|              6019|              6019|              6019|             6019|             6019|
+|   mean|                null|     null|2013.3581990363848|58738.38029573019|     null|        null|      null|    null|   null|    null|5.2767901644791495| 9.479468350224273| 7.641800963615219|18.135215152018656|1618.7388270476824|112.3204718391751|58.73838029573025|
+| stddev|                null|     null|  3.26974211609139|91268.84320624865|     null|        null|      null|    null|   null|    null|0.8063460892297473|11.187917112455484|3.2697421160913938| 4.581548857057788| 600.4458584135865|53.56569974837497| 91.2688432062487|
+|    min|Ambassador Classi...|Ahmedabad|              1998|              171|      CNG|   Automatic|     First|0.0 kmpl|1047 CC| 100 bhp|               0.0|              0.44|               2.0|               0.0|              72.0|             34.2|            0.171|
+|    max|Volvo XC90 2007-2...|     Pune|              2019|          6500000|   Petrol|      Manual|     Third|9.9 kmpl| 999 CC|99.6 bhp|              10.0|             160.0|              23.0|             33.54|            5998.0|            560.0|           6500.0|
++-------+--------------------+---------+------------------+-----------------+---------+------------+----------+--------+-------+--------+------------------+------------------+------------------+------------------+------------------+-----------------+-----------------+
+
+// Examine km_1000 distribution
+
+df2.select('km_1000).rdd.map( row => row.getDouble(0)).histogram(10)
+res3: (Array[Double], Array[Long]) = (Array(0.171, 650.1539, 1300.1368, 1950.1197000000002, 2600.1025999999997, 3250.0854999999997, 3900.0684, 4550.0513, 5200.0342, 5850.0171, 6500.0),
+                                      Array(6016, 2, 0, 0, 0, 0, 0, 0, 0, 1))
+
+df2.where('km_1000 < 651).select('km_1000).rdd.map( row => row.getDouble(0)).histogram(10)
+res5: (Array[Double], Array[Long]) = (Array(0.171, 62.15389999999999, 124.1368, 186.11969999999997, 248.10259999999997, 310.08549999999997, 372.06839999999994, 434.05129999999997, 496.03419999999994, 558.0171, 620.0),
+                                      Array(3759, 1995, 217, 33, 8, 0, 0, 3, 0, 1))
+
+df2.where('km_1000 < 651).select(skewness('km_1000),kurtosis('km_1000)).show
++-----------------+-----------------+
+|skewness(km_1000)|kurtosis(km_1000)|
++-----------------+-----------------+
+|2.624712797619494| 21.9393899868752|
++-----------------+-----------------+
+
+df2.where('km_1000 < 651).select(log('km_1000)).rdd.map( row => row.getDouble(0)).histogram(10)
+res7: (Array[Double], Array[Long]) = (Array(-1.7660917224794772, -0.9465106024276158, -0.1269294823757543, 0.6926516376761074, 1.5122327577279686, 2.3318138777798296, 3.1513949978316917, 3.970976117883553, 4.790557237935414, 5.6101383579872754, 6.429719478039138),
+                                      Array(1, 1, 22, 44, 130, 607, 2209, 2712, 283, 7))
+
+df2.where('km_1000 < 651).select(skewness(log('km_1000)),kurtosis(log('km_1000))).show
++----------------------+----------------------+
+|skewness(LOG(km_1000))|kurtosis(LOG(km_1000))|
++----------------------+----------------------+
+|     -1.38288568517457|     4.429991863800143|
++----------------------+----------------------+
+
+// Examine Price distribution
+
+df2.select('Price).rdd.map( row => row.getDouble(0)).histogram(10)
+res18: (Array[Double], Array[Long]) = (Array(0.44, 16.396, 32.352, 48.308, 64.264, 80.22, 96.176, 112.132, 128.088, 144.04399999999998, 160.0),
+                                       Array(5098, 619, 200, 64, 29, 5, 2, 1, 0, 1))
+
+df2.select(log('Price)).rdd.map( row => row.getDouble(0)).histogram(10)
+res19: (Array[Double], Array[Long]) = (Array(-0.8209805520698302, -0.23136511533946458, 0.35825032139090107, 0.9478657581212667, 1.5374811948516323, 2.127096631581998, 2.7167120683123636, 3.306327505042729, 3.895942941773095, 4.485558378503461, 5.075173815233827),
+                                       Array(33, 160, 584, 1619, 1804, 835, 550, 340, 87, 7))
+
+df2.select(skewness(log('Price)),kurtosis(log('Price))).show
++--------------------+--------------------+
+|skewness(LOG(Price))|kurtosis(LOG(Price))|
++--------------------+--------------------+
+| 0.41728666635808853|  0.1715862270294939|
++--------------------+--------------------+
+
+val df3 = df2.where('km_1000 < 651).      // removing outliers
+              withColumn("km_1000_log",log('km_1000)).
+              withColumn("price_log",log('Price))
+
+import org.apache.spark.ml.feature.{StringIndexer, VectorAssembler}
+
+val dfInd1 = new StringIndexer().setInputCol("Location").setOutputCol("LocationIdx").setHandleInvalid("skip")
+val dfInd2 = new StringIndexer().setInputCol("Fuel_Type").setOutputCol("Fuel_TypeIdx").setHandleInvalid("skip")
+val dfInd3 = new StringIndexer().setInputCol("Transmission").setOutputCol("TransmissionIdx").setHandleInvalid("skip")
+val dfInd4 = new StringIndexer().setInputCol("Owner_Type").setOutputCol("Owner_TypeIdx").setHandleInvalid("skip")
+
+import org.apache.spark.ml.feature.VectorAssembler
+val va = new VectorAssembler().setInputCols(Array("LocationIdx","Fuel_TypeIdx","TransmissionIdx","Owner_TypeIdx","price_log")).setOutputCol("features")
+
+import org.apache.spark.ml.Pipeline
+val pipeline = new Pipeline().setStages(Array(dfInd1,dfInd2,dfInd3,dfInd4,va))
+
+pipeline.fit(df3).transform(df3).select('features).show(false)
++------------------------------------+
+|features                            |
++------------------------------------+
+|(5,[1,4],[2.0,0.5596157879354227])  |
+|(5,[0,4],[4.0,2.5257286443082556])  |
+|[7.0,1.0,0.0,0.0,1.5040773967762742]|
+|(5,[0,4],[7.0,1.791759469228055])   |
+|[3.0,0.0,1.0,1.0,2.8758219768814333]|
+|[1.0,3.0,0.0,0.0,0.8544153281560676]|
+|(5,[0,4],[8.0,1.252762968495368])   |
+|(5,[2,4],[1.0,2.8622008809294686])  |
+|(5,[0,4],[4.0,1.6486586255873816])  |
+|[7.0,0.0,0.0,1.0,0.6678293725756554]|
+|[2.0,1.0,0.0,0.0,2.2975725511705014]|
+|[6.0,1.0,1.0,0.0,1.501852701754163] |
+|(5,[0,4],[8.0,1.7227665977411035])  |
+|[5.0,0.0,1.0,0.0,3.295836866004329] |
+|[4.0,0.0,1.0,1.0,2.8622008809294686]|
+|(5,[0,4],[5.0,2.70805020110221])    |
+|(5,[0,4],[2.0,1.6863989535702288])  |
+|(5,[0,4],[8.0,1.7900914121273581])  |
+|(5,[0,4],[2.0,1.8468787684491346])  |
+|[9.0,0.0,1.0,0.0,3.332204510175204] |
++------------------------------------+
+only showing top 20 rows
+
+val df4 = pipeline.fit(df3).transform(df3)
+
+
+// Examining correlation for categories variables against Price
+
+:load anova_table.scala
+
+Array("Location","Fuel_Type","Transmission","Owner_Type").map( x => anova_table(df4,x,"price_log") )
+
+Location:
+ss_total=4592.063511142796, ss_within=4095.7013848741353, ss_between=496.3621262686657
+df_total=6015, df_within=6005, df_between=10                                    
+sum_sq=496.3621262686657, df=10, F=72.7751925287135, PR(>F)=0.0
+
+Fuel_Type:
+ss_total=4592.063511142796, ss_within=3720.181812159346, ss_between=871.8816989834819
+df_total=6015, df_within=6011, df_between=4                                     
+sum_sq=871.8816989834819, df=4, F=352.1925242645391, PR(>F)=0.0
+
+Transmission:
+ss_total=4592.063511142796, ss_within=2845.6578169942995, ss_between=1746.4056941484882
+df_total=6015, df_within=6014, df_between=1
+sum_sq=1746.4056941484882, df=1, F=3690.845674376473, PR(>F)=0.0
+
+Owner_Type:
+ss_total=4592.063511142796, ss_within=4406.168879697619, ss_between=185.89463144514576
+df_total=6015, df_within=6012, df_between=3                                     
+sum_sq=185.89463144514576, df=3, F=84.5480170160064, PR(>F)=0.0
+
+// Conclusion: all category features has significant influence on the price_log  ( pvalue < 0.05 )
+
+
+// Examining correlation for continuous variables against Price
+
+import org.apache.spark.ml.feature.RFormula
+val rf = new RFormula().setFormula("price_log ~ km_1000_log + age + mileage_aux + engine_aux + power_aux + Seats + price_log")
+
+rf.fit(df3).transform(df3).select('features,'label).show(false)
++------------------------------------------------------------------+------------------+
+|features                                                          |label             |
++------------------------------------------------------------------+------------------+
+|[4.276666119016055,11.0,26.6,998.0,58.16,5.0,0.5596157879354227]  |0.5596157879354227|
+|[3.713572066704308,6.0,19.67,1582.0,126.2,5.0,2.5257286443082556] |2.5257286443082556|
+|[3.828641396489095,10.0,18.2,1199.0,88.7,5.0,1.5040773967762742]  |1.5040773967762742|
+|[4.465908118654584,9.0,20.77,1248.0,88.76,7.0,1.791759469228055]  |1.791759469228055 |
+|[3.7054907199191334,8.0,15.2,1968.0,140.8,5.0,2.8758219768814333] |2.8758219768814333|
+|[4.31748811353631,9.0,21.1,814.0,55.2,5.0,0.8544153281560676]     |0.8544153281560676|
+|[4.465896624335651,8.0,23.08,1461.0,63.1,5.0,1.252762968495368]   |1.252762968495368 |
+|[3.58351893845611,5.0,11.36,2755.0,171.5,8.0,2.8622008809294686]  |2.8622008809294686|
+|[4.1655793631505516,8.0,20.54,1598.0,103.6,5.0,1.6486586255873816]|1.6486586255873816|
+|[4.188623907869109,9.0,22.3,1248.0,74.0,5.0,0.6678293725756554]   |0.6678293725756554|
+|[3.246179659395546,3.0,21.56,1462.0,103.25,5.0,2.2975725511705014]|2.2975725511705014|
+|[4.0943445622221,9.0,16.8,1497.0,116.3,5.0,1.501852701754163]     |1.501852701754163 |
+|[4.165486234493244,6.0,25.2,1248.0,74.0,5.0,1.7227665977411035]   |1.7227665977411035|
+|[4.276666119016055,7.0,12.7,2179.0,187.7,5.0,3.295836866004329]   |3.295836866004329 |
+|[4.442651256490317,9.0,0.0,2179.0,115.0,5.0,2.8622008809294686]   |2.8622008809294686|
+|[4.700480365792417,7.0,13.5,2477.0,175.56,7.0,2.70805020110221]   |2.70805020110221  |
+|[4.07668962698338,5.0,25.8,1498.0,98.6,5.0,1.6863989535702288]    |1.6863989535702288|
+|[3.2188758248682006,4.0,28.4,1248.0,74.0,5.0,1.7900914121273581]  |1.7900914121273581|
+|[4.349877856337962,7.0,20.45,1461.0,83.8,5.0,1.8468787684491346]  |1.8468787684491346|
+|[4.363098624788363,7.0,14.84,2143.0,167.62,5.0,3.332204510175204] |3.332204510175204 |
++------------------------------------------------------------------+------------------+
+only showing top 20 rows
+
+val df4 = rf.fit(df3).transform(df3)
+
+import org.apache.spark.sql.Row
+import org.apache.spark.ml.linalg.Matrix
+import org.apache.spark.ml.stat.Correlation
+
+Correlation.corr(df4, "features", "pearson").head
+
+val corr = Correlation.corr(df4, "features", "pearson").head match {
+   case Row(coeff: Matrix) => coeff
+}
+corr: org.apache.spark.ml.linalg.Matrix =
+1.0                   0.5024450661527627     ... (7 total)
+0.5024450661527627    1.0                    ...
+-0.13488925297623003  -0.3216850207415313    ...
+0.14500677083611968   0.04672843239400758    ...
+0.004633677176755833  -0.03923205007335608   ...
+0.19161943322001324   -0.015257285463083784  ...
+-0.20895303190731537  -0.5048324338075332    ...
+
+corr.toDense.rowIter.foreach( x => {
+  val size = x.size
+  for ( i <- Range(0,size)) { 
+    val elem = x(i)
+    print(f"$elem%.3f\t") 
+  }
+  println
+})
+                                               //  price_log 
+1.000   0.502   -0.135  0.145   0.005   0.192   -0.209   // km_1000_log
+0.502   1.000   -0.322  0.047   -0.039  -0.015  -0.505   // age
+-0.135  -0.322  1.000   -0.582  -0.482  -0.300  -0.255   // mileage_aux
+0.145   0.047   -0.582  1.000   0.860   0.394   0.685    // engine_aux
+0.005   -0.039  -0.482  0.860   1.000   0.106   0.763    // power_aux
+0.192   -0.015  -0.300  0.394   0.106   1.000   0.164    // Seats
+-0.209  -0.505  -0.255  0.685   0.763   0.164   1.00
+
+
+// engine_aux x power_aux = 0.860 can be considered multicolinear
+// engine_aux can be removed from analysis
+// all continuous features contribute to price_log

@@ -1,0 +1,282 @@
+
+val df = spark.read.option("inferSchema","true").option("header","true").csv("staging/Sales_Train.csv")
+
+df.printSchema
+root
+ |-- Item_Identifier: string (nullable = true)
+ |-- Item_Weight: double (nullable = true)
+ |-- Item_Fat_Content: string (nullable = true)
+ |-- Item_Visibility: double (nullable = true)
+ |-- Item_Type: string (nullable = true)
+ |-- Item_MRP: double (nullable = true)
+ |-- Outlet_Identifier: string (nullable = true)
+ |-- Outlet_Establishment_Year: integer (nullable = true)
+ |-- Outlet_Size: string (nullable = true)
+ |-- Outlet_Location_Type: string (nullable = true)
+ |-- Outlet_Type: string (nullable = true)
+ |-- Item_Outlet_Sales: double (nullable = true)
+
+df.show
++---------------+-----------+----------------+---------------+--------------------+--------+-----------------+-------------------------+-----------+--------------------+-----------------+-----------------+
+|Item_Identifier|Item_Weight|Item_Fat_Content|Item_Visibility|           Item_Type|Item_MRP|Outlet_Identifier|Outlet_Establishment_Year|Outlet_Size|Outlet_Location_Type|      Outlet_Type|Item_Outlet_Sales|
++---------------+-----------+----------------+---------------+--------------------+--------+-----------------+-------------------------+-----------+--------------------+-----------------+-----------------+
+|          FDA15|        9.3|         Low Fat|    0.016047301|               Dairy|249.8092|           OUT049|                     1999|     Medium|              Tier 1|Supermarket Type1|         3735.138|
+|          DRC01|       5.92|         Regular|    0.019278216|         Soft Drinks| 48.2692|           OUT018|                     2009|     Medium|              Tier 3|Supermarket Type2|         443.4228|
+|          FDN15|       17.5|         Low Fat|    0.016760075|                Meat| 141.618|           OUT049|                     1999|     Medium|              Tier 1|Supermarket Type1|          2097.27|
+|          FDX07|       19.2|         Regular|            0.0|Fruits and Vegeta...| 182.095|           OUT010|                     1998|       null|              Tier 3|    Grocery Store|           732.38|
+|          NCD19|       8.93|         Low Fat|            0.0|           Household| 53.8614|           OUT013|                     1987|       High|              Tier 3|Supermarket Type1|         994.7052|
+|          FDP36|     10.395|         Regular|            0.0|        Baking Goods| 51.4008|           OUT018|                     2009|     Medium|              Tier 3|Supermarket Type2|         556.6088|
+|          FDO10|      13.65|         Regular|    0.012741089|         Snack Foods| 57.6588|           OUT013|                     1987|       High|              Tier 3|Supermarket Type1|         343.5528|
+|          FDP10|       null|         Low Fat|    0.127469857|         Snack Foods|107.7622|           OUT027|                     1985|     Medium|              Tier 3|Supermarket Type3|        4022.7636|
+|          FDH17|       16.2|         Regular|    0.016687114|        Frozen Foods| 96.9726|           OUT045|                     2002|       null|              Tier 2|Supermarket Type1|        1076.5986|
+|          FDU28|       19.2|         Regular|     0.09444959|        Frozen Foods|187.8214|           OUT017|                     2007|       null|              Tier 2|Supermarket Type1|         4710.535|
+|          FDY07|       11.8|         Low Fat|            0.0|Fruits and Vegeta...| 45.5402|           OUT049|                     1999|     Medium|              Tier 1|Supermarket Type1|        1516.0266|
+|          FDA03|       18.5|         Regular|    0.045463773|               Dairy|144.1102|           OUT046|                     1997|      Small|              Tier 1|Supermarket Type1|         2187.153|
+|          FDX32|       15.1|         Regular|      0.1000135|Fruits and Vegeta...|145.4786|           OUT049|                     1999|     Medium|              Tier 1|Supermarket Type1|        1589.2646|
+|          FDS46|       17.6|         Regular|    0.047257328|         Snack Foods|119.6782|           OUT046|                     1997|      Small|              Tier 1|Supermarket Type1|        2145.2076|
+|          FDF32|      16.35|         Low Fat|      0.0680243|Fruits and Vegeta...|196.4426|           OUT013|                     1987|       High|              Tier 3|Supermarket Type1|         1977.426|
+|          FDP49|        9.0|         Regular|    0.069088961|           Breakfast| 56.3614|           OUT046|                     1997|      Small|              Tier 1|Supermarket Type1|        1547.3192|
+|          NCB42|       11.8|         Low Fat|    0.008596051|  Health and Hygiene|115.3492|           OUT018|                     2009|     Medium|              Tier 3|Supermarket Type2|        1621.8888|
+|          FDP49|        9.0|         Regular|    0.069196376|           Breakfast| 54.3614|           OUT049|                     1999|     Medium|              Tier 1|Supermarket Type1|         718.3982|
+|          DRI11|       null|         Low Fat|    0.034237682|         Hard Drinks|113.2834|           OUT027|                     1985|     Medium|              Tier 3|Supermarket Type3|         2303.668|
+|          FDU02|      13.35|         Low Fat|     0.10249212|               Dairy|230.5352|           OUT035|                     2004|      Small|              Tier 2|Supermarket Type1|        2748.4224|
++---------------+-----------+----------------+---------------+--------------------+--------+-----------------+-------------------------+-----------+--------------------+-----------------+-----------------+
+only showing top 20 rows
+
+val df1 = df.na.fill(12.857645184136183, Array("Item_Weight")).na.fill("Small",Array("Outlet_Size")).
+          withColumn("Outlet_Age", lit(2013) - 'Outlet_Establishment_Year).
+          withColumn("Item_Fat_Content", when($"Item_Fat_Content" === "LF", "Low Fat").when($"Item_Fat_Content" === "low fat", "Low Fat").when($"Item_Fat_Content" === "reg", "Regular").otherwise($"Item_Fat_Content")).
+          withColumn("Item_Sales_sqrt", sqrt('Item_Outlet_Sales))
+
+
+import org.apache.spark.ml.feature.RFormula
+val rf = new RFormula().setFormula("Item_Sales_sqrt ~ Item_Visibility + Item_MRP + Outlet_Age + Outlet_Type + Outlet_Size + Outlet_Location_Type + Item_Type + Item_Fat_Content")
+
+rf.fit(df1).transform(df1).show(10)
++---------------+------------------+----------------+---------------+--------------------+--------+-----------------+-------------------------+-----------+--------------------+-----------------+-----------------+----------+------------------+--------------------+------------------+
+|Item_Identifier|       Item_Weight|Item_Fat_Content|Item_Visibility|           Item_Type|Item_MRP|Outlet_Identifier|Outlet_Establishment_Year|Outlet_Size|Outlet_Location_Type|      Outlet_Type|Item_Outlet_Sales|Outlet_Age|   Item_Sales_sqrt|            features|             label|
++---------------+------------------+----------------+---------------+--------------------+--------+-----------------+-------------------------+-----------+--------------------+-----------------+-----------------+----------+------------------+--------------------+------------------+
+|          FDA15|               9.3|         Low Fat|    0.016047301|               Dairy|249.8092|           OUT049|                     1999|     Medium|              Tier 1|Supermarket Type1|         3735.138|        14| 61.11577537755698|(26,[0,1,2,3,7,14...| 61.11577537755698|
+|          DRC01|              5.92|         Regular|    0.019278216|         Soft Drinks| 48.2692|           OUT018|                     2009|     Medium|              Tier 3|Supermarket Type2|         443.4228|         4|21.057606701617352|(26,[0,1,2,7,8,18...|21.057606701617352|
+|          FDN15|              17.5|         Low Fat|    0.016760075|                Meat| 141.618|           OUT049|                     1999|     Medium|              Tier 1|Supermarket Type1|          2097.27|        14| 45.79596052055246|(26,[0,1,2,3,7,19...| 45.79596052055246|
+|          FDX07|              19.2|         Regular|            0.0|Fruits and Vegeta...| 182.095|           OUT010|                     1998|      Small|              Tier 3|    Grocery Store|           732.38|        15| 27.06252020784465|(26,[1,2,4,6,8,10...| 27.06252020784465|
+|          NCD19|              8.93|         Low Fat|            0.0|           Household| 53.8614|           OUT013|                     1987|       High|              Tier 3|Supermarket Type1|         994.7052|        26|31.538947350854944|(26,[1,2,3,8,12,2...|31.538947350854944|
+|          FDP36|            10.395|         Regular|            0.0|        Baking Goods| 51.4008|           OUT018|                     2009|     Medium|              Tier 3|Supermarket Type2|         556.6088|         4|23.592558148704434|(26,[1,2,7,8,16],...|23.592558148704434|
+|          FDO10|             13.65|         Regular|    0.012741089|         Snack Foods| 57.6588|           OUT013|                     1987|       High|              Tier 3|Supermarket Type1|         343.5528|        26| 18.53517736629461|(26,[0,1,2,3,8,11...| 18.53517736629461|
+|          FDP10|12.857645184136183|         Low Fat|    0.127469857|         Snack Foods|107.7622|           OUT027|                     1985|     Medium|              Tier 3|Supermarket Type3|        4022.7636|        28| 63.42525995216732|(26,[0,1,2,5,7,8,...| 63.42525995216732|
+|          FDH17|              16.2|         Regular|    0.016687114|        Frozen Foods| 96.9726|           OUT045|                     2002|      Small|              Tier 2|Supermarket Type1|        1076.5986|        11| 32.81156198659247|(26,[0,1,2,3,6,9,...| 32.81156198659247|
+|          FDU28|              19.2|         Regular|     0.09444959|        Frozen Foods|187.8214|           OUT017|                     2007|      Small|              Tier 2|Supermarket Type1|         4710.535|         6| 68.63333738060535|(26,[0,1,2,3,6,9,...| 68.63333738060535|
++---------------+------------------+----------------+---------------+--------------------+--------+-----------------+-------------------------+-----------+--------------------+-----------------+-----------------+----------+------------------+--------------------+------------------+
+only showing top 10 rows
+
+
+// ----- find best linear regression model
+
+val Array(trainingData, testData) = df1.randomSplit(Array(0.7,0.3),11L)
+trainingData.cache
+testData.cache
+
+import org.apache.spark.ml.feature.StandardScaler
+val stdScaler = new StandardScaler().
+setWithStd(true).
+setWithMean(true).
+setInputCol("features").
+setOutputCol("scaledFeatures")
+
+import org.apache.spark.ml.regression.LinearRegression
+val lr = new LinearRegression
+lr.setFitIntercept(true).setFeaturesCol("scaledFeatures")
+
+import org.apache.spark.ml.Pipeline
+val pipeline = new Pipeline().setStages(Array(rf,stdScaler,lr))
+
+import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
+
+val paramGrid = new ParamGridBuilder().
+addGrid(lr.regParam, Array(1, 0.1, 0.01, 0.001)).
+addGrid(lr.maxIter, Array(10, 20, 40, 100)).build()
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+
+val cv = new CrossValidator().
+setEstimator(pipeline).
+setEvaluator(new RegressionEvaluator).
+setEstimatorParamMaps(paramGrid).
+setNumFolds(3)
+
+val pipelinemodel = cv.fit(trainingData)
+
+import org.apache.spark.ml.PipelineModel
+val bestmodel = pipelinemodel.bestModel.asInstanceOf[PipelineModel]
+
+import org.apache.spark.ml.regression.LinearRegressionModel
+val lrmodel = bestmodel.stages(2).asInstanceOf[LinearRegressionModel]
+
+// -----  metrics extracted from model
+
+lrmodel.getRegParam
+res40: Double = 0.01
+
+lrmodel.getMaxIter
+res39: Int = 10
+
+lrmodel.getFitIntercept
+res4: Boolean = true
+
+lrmodel.getStandardization
+res5: Boolean = true
+
+lrmodel.summary.rootMeanSquaredError
+res42: Double = 10.82395798096718
+
+lrmodel.summary.r2
+res44: Double = 0.6579225083263568
+
+println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
+LR Model coefficients:
+0.01511659983206447   // Item_Visibility
+10.361865029589204    // Item_MRP
+-2.2891141483727053   // Outlet_Age
+1.8883965447952713
+-6.88938331758034
+7.3796898696947455    // Outlet_Type
+-3.0809564057508663
+-2.6577176341932103   // Outlet_Size
+-1.7579219449922012
+-0.6867948716102389   // Outlet_Location_Type
+-0.01973531158803836
+-0.22472585059991781
+-0.37991207008044925
+-0.2475247253140038
+-0.29477041390522585
+-0.10375565931946447
+0.03801862704883773
+-0.1524710199381032
+-0.14033244192186237
+0.08512829359596868
+-0.07927608943636878
+-0.051448827712405165
+-0.10558782387008428
+-0.04858335992800032
+-0.14334198480459398   // Item_Type
+-0.10811638994050796   // Item_Fat_Content
+
+// -----  metrics on test data
+
+val pred = bestmodel.transform(testData)
+
+val bceval = new RegressionEvaluator()
+
+bceval.setMetricName("rmse").evaluate(pred)
+res46: Double = 10.638815496062014
+
+bceval.setMetricName("r2").evaluate(pred)
+res47: Double = 0.6502657349791899
+
+
+// build model considering only features : Item_MRP, Outlet_Age, Outlet_Type, Outlet_Size, Outlet_Location_Type
+
+import org.apache.spark.ml.feature.RFormula
+val rf = new RFormula().setFormula("Item_Sales_sqrt ~ Item_MRP + Outlet_Age + Outlet_Type + Outlet_Size + Outlet_Location_Type")
+
+import org.apache.spark.ml.feature.StandardScaler
+val stdScaler = new StandardScaler().
+setWithStd(true).
+setWithMean(true).
+setInputCol("features").
+setOutputCol("scaledFeatures")
+
+import org.apache.spark.ml.regression.LinearRegression
+val lr = new LinearRegression
+lr.setFitIntercept(true).setRegParam(0.01).setMaxIter(10).setFeaturesCol("scaledFeatures")
+
+import org.apache.spark.ml.Pipeline
+val pipeline = new Pipeline().setStages(Array(rf,stdScaler,lr))
+
+val pipelinemodel = pipeline.fit(df1)
+
+import org.apache.spark.ml.regression.LinearRegressionModel
+val lrmodel = pipelinemodel.stages(2).asInstanceOf[LinearRegressionModel]
+
+lrmodel.summary.rootMeanSquaredError
+res49: Double = 10.774050045367341
+
+lrmodel.summary.r2
+res50: Double = 0.6555843207066334
+
+println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
+LR Model coefficients:
+10.333958565790205   // Item_MRP
+-2.115115391949402   // Outlet_Age
+1.497785785705435
+-7.12074201621851
+7.034700857969901    // Outlet_Type
+-3.021459223231585
+-2.6207590965277063   // Outlet_Size
+-1.7158257207495804
+-0.5945861340587361   // Outlet_Location_Type
+
+
+// load test data and perform transformations and predictions
+
+val dft = spark.read.option("inferSchema","true").option("header","true").csv("staging/Sales_Test.csv")
+dft: org.apache.spark.sql.DataFrame = [Item_Identifier: string, Item_Weight: double ... 10 more fields]
+
+scala> dft.printSchema
+root
+ |-- Item_Identifier: string (nullable = true)
+ |-- Item_Weight: double (nullable = true)
+ |-- Item_Fat_Content: string (nullable = true)
+ |-- Item_Visibility: double (nullable = true)
+ |-- Item_Type: string (nullable = true)
+ |-- Item_MRP: double (nullable = true)
+ |-- Outlet_Identifier: string (nullable = true)
+ |-- Outlet_Establishment_Year: integer (nullable = true)
+ |-- Outlet_Size: string (nullable = true)
+ |-- Outlet_Location_Type: string (nullable = true)
+ |-- Outlet_Type: string (nullable = true)
+ |-- Item_Outlet_Sales: string (nullable = true)
+
+
+scala> dft.show(5)
++---------------+-----------+----------------+---------------+-----------+--------+-----------------+-------------------------+-----------+--------------------+-----------------+-----------------+
+|Item_Identifier|Item_Weight|Item_Fat_Content|Item_Visibility|  Item_Type|Item_MRP|Outlet_Identifier|Outlet_Establishment_Year|Outlet_Size|Outlet_Location_Type|      Outlet_Type|Item_Outlet_Sales|
++---------------+-----------+----------------+---------------+-----------+--------+-----------------+-------------------------+-----------+--------------------+-----------------+-----------------+
+|          FDW58|      20.75|         Low Fat|    0.007564836|Snack Foods|107.8622|           OUT049|                     1999|     Medium|              Tier 1|Supermarket Type1|             null|
+|          FDW14|        8.3|             reg|    0.038427677|      Dairy| 87.3198|           OUT017|                     2007|       null|              Tier 2|Supermarket Type1|             null|
+|          NCN55|       14.6|         Low Fat|    0.099574908|     Others|241.7538|           OUT010|                     1998|       null|              Tier 3|    Grocery Store|             null|
+|          FDQ58|      7.315|         Low Fat|    0.015388393|Snack Foods| 155.034|           OUT017|                     2007|       null|              Tier 2|Supermarket Type1|             null|
+|          FDY38|       null|         Regular|    0.118599314|      Dairy|  234.23|           OUT027|                     1985|     Medium|              Tier 3|Supermarket Type3|             null|
++---------------+-----------+----------------+---------------+-----------+--------+-----------------+-------------------------+-----------+--------------------+-----------------+-----------------+
+only showing top 5 rows
+
+val dft1 = dft.na.fill(12.857645184136183, Array("Item_Weight")).na.fill("Small",Array("Outlet_Size")).
+          withColumn("Outlet_Age", lit(2013) - 'Outlet_Establishment_Year).
+          withColumn("Item_Fat_Content", when($"Item_Fat_Content" === "LF", "Low Fat").when($"Item_Fat_Content" === "low fat", "Low Fat").when($"Item_Fat_Content" === "reg", "Regular").otherwise($"Item_Fat_Content"))
+
+pipelinemodel.transform(dft1).select('Item_MRP,'Outlet_Age,'Outlet_Type,'Outlet_Size,'Outlet_Location_Type,pow('prediction,2)).show
++--------+----------+-----------------+-----------+--------------------+----------------------+
+|Item_MRP|Outlet_Age|      Outlet_Type|Outlet_Size|Outlet_Location_Type|POWER(prediction, 2.0)|
++--------+----------+-----------------+-----------+--------------------+----------------------+
+|107.8622|        14|Supermarket Type1|     Medium|              Tier 1|    1644.1711276783278|
+| 87.3198|         6|Supermarket Type1|      Small|              Tier 2|    1397.6594429022787|
+|241.7538|        15|    Grocery Store|      Small|              Tier 3|     1153.606137666816|
+| 155.034|         6|Supermarket Type1|      Small|              Tier 2|     2364.080905891836|
+|  234.23|        28|Supermarket Type3|     Medium|              Tier 3|     5450.458509654957|
+|117.1492|        16|Supermarket Type1|      Small|              Tier 1|    1687.2642302879237|
+| 50.1034|         4|Supermarket Type2|     Medium|              Tier 3|     719.7629795503453|
+| 81.0592|        28|Supermarket Type3|     Medium|              Tier 3|     2343.525622035752|
+| 95.7436|        11|Supermarket Type1|      Small|              Tier 2|    1407.7421191543763|
+|186.8924|         6|Supermarket Type1|      Small|              Tier 2|     2906.117253920773|
+|118.3466|         6|Supermarket Type1|      Small|              Tier 2|    1809.1316216254008|
+| 85.3908|        11|Supermarket Type1|      Small|              Tier 2|    1281.7789334243764|
+|240.4196|        28|    Grocery Store|      Small|              Tier 1|     1154.075699394182|
+|122.3098|        14|Supermarket Type1|     Medium|              Tier 1|    1844.3436895731306|
+| 52.0298|        26|Supermarket Type1|       High|              Tier 3|      919.433819746856|
+|151.6366|        14|Supermarket Type1|     Medium|              Tier 1|    2286.0187032793797|
+|198.7768|        11|Supermarket Type1|      Small|              Tier 2|     2983.046745412242|
+|192.2188|         4|Supermarket Type2|     Medium|              Tier 3|      2541.27959632569|
+|109.6912|        28|Supermarket Type3|     Medium|              Tier 3|     2826.111498291465|
+|193.7136|        15|    Grocery Store|      Small|              Tier 3|     675.6340142511327|
++--------+----------+-----------------+-----------+--------------------+----------------------+
+only showing top 20 rows

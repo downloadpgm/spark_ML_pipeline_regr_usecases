@@ -1,137 +1,23 @@
 
-import org.apache.spark.sql.types._
-import spark.implicits._
+import org.apache.spark.sql.functions._
 
-val schemaHousing = new StructType().
-add("CRIM", DoubleType).
-add("ZN", DoubleType).
-add("INDUS", DoubleType).
-add("CHAS", IntegerType).
-add("NOX", DoubleType).
-add("RM", DoubleType).
-add("AGE", DoubleType).
-add("DIS", DoubleType).
-add("RAD", IntegerType).
-add("TAX", DoubleType).
-add("PTRATIO", DoubleType).
-add("B", DoubleType).
-add("LSTAT", DoubleType).
-add("MEDV", DoubleType)
+val df = spark.read.format("csv").option("inferSchema","true").option("ignoreLeadingWhiteSpace","true").load("staging/housing.data").toDF("CRIM","ZN","INDUS","CHAS","NOX","RM","AGE","DIS","RAD","TAX","PTRATIO","B","LSTAT","MEDV")
 
-val df = spark.read.format("csv").option("ignoreLeadingWhiteSpace","true").schema(schemaHousing).load("spark/housing/housing.data")
+val df1 = df.where('CRIM < 27.0).
+             withColumn("CRIM_log", log('CRIM)).
+             withColumn("DIS_log", log('DIS))	
 
-df.show(10)
-+-------+----+-----+----+-----+-----+-----+------+---+-----+-------+------+-----+----+
-|   CRIM|  ZN|INDUS|CHAS|  NOX|   RM|  AGE|   DIS|RAD|  TAX|PTRATIO|     B|LSTAT|MEDV|
-+-------+----+-----+----+-----+-----+-----+------+---+-----+-------+------+-----+----+
-|0.00632|18.0| 2.31|   0|0.538|6.575| 65.2|  4.09|  1|296.0|   15.3| 396.9| 4.98|24.0|
-|0.02731| 0.0| 7.07|   0|0.469|6.421| 78.9|4.9671|  2|242.0|   17.8| 396.9| 9.14|21.6|
-|0.02729| 0.0| 7.07|   0|0.469|7.185| 61.1|4.9671|  2|242.0|   17.8|392.83| 4.03|34.7|
-|0.03237| 0.0| 2.18|   0|0.458|6.998| 45.8|6.0622|  3|222.0|   18.7|394.63| 2.94|33.4|
-|0.06905| 0.0| 2.18|   0|0.458|7.147| 54.2|6.0622|  3|222.0|   18.7| 396.9| 5.33|36.2|
-|0.02985| 0.0| 2.18|   0|0.458| 6.43| 58.7|6.0622|  3|222.0|   18.7|394.12| 5.21|28.7|
-|0.08829|12.5| 7.87|   0|0.524|6.012| 66.6|5.5605|  5|311.0|   15.2| 395.6|12.43|22.9|
-|0.14455|12.5| 7.87|   0|0.524|6.172| 96.1|5.9505|  5|311.0|   15.2| 396.9|19.15|27.1|
-|0.21124|12.5| 7.87|   0|0.524|5.631|100.0|6.0821|  5|311.0|   15.2|386.63|29.93|16.5|
-|0.17004|12.5| 7.87|   0|0.524|6.004| 85.9|6.5921|  5|311.0|   15.2|386.71| 17.1|18.9|
-+-------+----+-----+----+-----+-----+-----+------+---+-----+-------+------+-----+----+
-only showing top 10 rows
+val Array(trainingData, testData) = df1.randomSplit(Array(0.7,0.3),11L)
 
-df.describe().show
-+-------+------------------+------------------+------------------+------------------+-------------------+------------------+------------------+-----------------+-----------------+------------------+------------------+------------------+------------------+------------------+
-|summary|              CRIM|                ZN|             INDUS|              CHAS|                NOX|                RM|               AGE|              DIS|              RAD|               TAX|           PTRATIO|                 B|             LSTAT|              MEDV|
-+-------+------------------+------------------+------------------+------------------+-------------------+------------------+------------------+-----------------+-----------------+------------------+------------------+------------------+------------------+------------------+
-|  count|               506|               506|               506|               506|                506|               506|               506|              506|              506|               506|               506|               506|               506|               506|
-|   mean|3.6135235573122535|11.363636363636363|11.136778656126504|0.0691699604743083| 0.5546950592885372| 6.284634387351787| 68.57490118577078|3.795042687747034|9.549407114624506| 408.2371541501976|18.455533596837967|356.67403162055257|12.653063241106723|22.532806324110698|
-| stddev| 8.601545105332491| 23.32245299451514| 6.860352940897589|0.2539940413404101|0.11587767566755584|0.7026171434153232|28.148861406903595| 2.10571012662761|8.707259384239366|168.53711605495903|2.1649455237144455| 91.29486438415782| 7.141061511348571| 9.197104087379815|
-|    min|           0.00632|               0.0|              0.46|                 0|              0.385|             3.561|               2.9|           1.1296|                1|             187.0|              12.6|              0.32|              1.73|               5.0|
-|    max|           88.9762|             100.0|             27.74|                 1|              0.871|              8.78|             100.0|          12.1265|               24|             711.0|              22.0|             396.9|             37.97|              50.0|
-+-------+------------------+------------------+------------------+------------------+-------------------+------------------+------------------+-----------------+-----------------+------------------+------------------+------------------+------------------+------------------+
+trainingData.cache
+testData.cache
 
+// ----- find best linear regression model
 
-val df1 = df.withColumn("label", 'MEDV)
+val listcols = df1.columns.diff(Array("CRIM","DIS","MEDV"))
 
-import org.apache.spark.ml.feature.VectorAssembler
-
-val va = new VectorAssembler().setOutputCol("features").setInputCols(Array("CRIM","ZN","INDUS","CHAS","NOX","RM","AGE","DIS","RAD","TAX","PTRATIO","B","LSTAT"))
-
-val df2 = va.transform(df1)
-
-df2.printSchema
-root
- |-- CRIM: double (nullable = true)
- |-- ZN: double (nullable = true)
- |-- INDUS: double (nullable = true)
- |-- CHAS: integer (nullable = true)
- |-- NOX: double (nullable = true)
- |-- RM: double (nullable = true)
- |-- AGE: double (nullable = true)
- |-- DIS: double (nullable = true)
- |-- RAD: integer (nullable = true)
- |-- TAX: double (nullable = true)
- |-- PTRATIO: double (nullable = true)
- |-- B: double (nullable = true)
- |-- LSTAT: double (nullable = true)
- |-- MEDV: double (nullable = true)
- |-- label: double (nullable = true)
- |-- features: vector (nullable = true)
-
-// -----  calculate pearson correlation to check multicolinearity
-
-import org.apache.spark.ml.stat.Correlation
-import org.apache.spark.ml.linalg.Matrix
-import org.apache.spark.sql.Row
-
-val corr = Correlation.corr(df2, "features", "pearson").head match {
-   case Row(coeff: Matrix) => coeff
-}
-corr: org.apache.spark.ml.linalg.Matrix =
-1.0                   -0.20046921966254755  ... (13 total)
--0.20046921966254755  1.0                   ...
-0.4065834114062576    -0.5338281863044684   ...
--0.0558915822222415   -0.04269671929612164  ...
-0.4209717113924746    -0.516603707828013    ...
--0.21924670286250422  0.311990587374078     ...
-0.35273425090136323   -0.5695373420992141   ...
--0.37967008695102555  0.6644082227621105    ...
-0.6255051452626024    -0.3119478260185366   ...
-0.5827643120325849    -0.31456332467759907  ...
-0.2899455792794847    -0.3916785479361636   ...
--0.38506394199422683  0.175520317382828     ...
-0.45562147944794745   -0.41299457452700444  ...
-
-
-corr.toDense.rowIter.foreach( x => {
-  val size = x.size
-  for ( i <- Range(0,size)) { 
-    val elem = x(i)
-    print(f"$elem%.3f\t") 
-  }
-  println
-})
-// "CRIM","ZN","INDUS", "CHAS", "NOX",  "RM",   "AGE",  "DIS",  "RAD",  "TAX",  "PTRATIO","B",  "LSTAT"
-1.000   -0.200  0.407   -0.056  0.421   -0.219  0.353   -0.380  0.626   0.583   0.290   -0.385  0.456
--0.200  1.000   -0.534  -0.043  -0.517  0.312   -0.570  0.664   -0.312  -0.315  -0.392  0.176   -0.413
-0.407   -0.534  1.000   0.063   0.764   -0.392  0.645   -0.708  0.595   0.721   0.383   -0.357  0.604
--0.056  -0.043  0.063   1.000   0.091   0.091   0.087   -0.099  -0.007  -0.036  -0.122  0.049   -0.054
-0.421   -0.517  0.764   0.091   1.000   -0.302  0.731   -0.769  0.611   0.668   0.189   -0.380  0.591
--0.219  0.312   -0.392  0.091   -0.302  1.000   -0.240  0.205   -0.210  -0.292  -0.356  0.128   -0.614
-0.353   -0.570  0.645   0.087   0.731   -0.240  1.000   -0.748  0.456   0.506   0.262   -0.274  0.602
--0.380  0.664   -0.708  -0.099  -0.769  0.205   -0.748  1.000   -0.495  -0.534  -0.232  0.292   -0.497
-0.626   -0.312  0.595   -0.007  0.611   -0.210  0.456   -0.495  1.000   0.910   0.465   -0.444  0.489
-0.583   -0.315  0.721   -0.036  0.668   -0.292  0.506   -0.534  0.910   1.000   0.461   -0.442  0.544
-0.290   -0.392  0.383   -0.122  0.189   -0.356  0.262   -0.232  0.465   0.461   1.000   -0.177  0.374
--0.385  0.176   -0.357  0.049   -0.380  0.128   -0.274  0.292   -0.444  -0.442  -0.177  1.000   -0.366
-0.456   -0.413  0.604   -0.054  0.591   -0.614  0.602   -0.497  0.489   0.544   0.374   -0.366  1.000
-
-// RAD x TAX = 0.910 can be considered multicolinear, so RAD will be removed from the model
-
-
-// ----- building the linear regression model
-
-import org.apache.spark.ml.feature.VectorAssembler
-
-val va = new VectorAssembler().setOutputCol("features").setInputCols(Array("CRIM","ZN","INDUS","CHAS","NOX","RM","AGE","DIS","TAX","PTRATIO","B","LSTAT"))
+import org.apache.spark.ml.feature.RFormula
+val rf = new RFormula().setFormula("MEDV ~ " + listcols.mkString(" + "))
 
 import org.apache.spark.ml.feature.StandardScaler
 val stdScaler = new StandardScaler().
@@ -142,66 +28,10 @@ setOutputCol("scaledFeatures")
 
 import org.apache.spark.ml.regression.LinearRegression
 val lr = new LinearRegression
-lr.setRegParam(0.01).setMaxIter(100).setFitIntercept(true).setFeaturesCol("scaledFeatures")
-
-import org.apache.spark.ml.Pipeline
-val pipeline = new Pipeline().setStages(Array(va,stdScaler,lr))
-
-val Array(trainingData, testData) = df1.randomSplit(Array(0.7,0.3),11L)
-
-trainingData.cache
-testData.cache
-
-val model = pipeline.fit(trainingData)
-
-import org.apache.spark.ml.regression.LinearRegressionModel
-val lrmodel = model.stages(2).asInstanceOf[LinearRegressionModel]
-
-// -----  metrics extracted from model
-
-lrmodel.summary.rootMeanSquaredError
-res6: Double = 4.918627701000639
-
-lrmodel.summary.r2
-res7: Double = 0.7205273599399451
-
-println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
-LR Model coefficients:
--0.8259591294503773
-0.91009077499983
--1.1319580886427711
-0.4566065347788466
--1.7804466337800346
-2.7601251022408526
--0.0963516108242251
--3.521127726284663
-0.534868592417649
--1.6697598370750222
-0.7786299832774886
--3.7656026913247365
-
-// -----  metrics on test data
-
-val pred = model.transform(testData)
-
-import org.apache.spark.ml.evaluation.RegressionEvaluator
-val bceval = new RegressionEvaluator()
-
-bceval.setMetricName("rmse").evaluate(pred)
-res12: Double = 4.569012200919668
-
-bceval.setMetricName("r2").evaluate(pred)
-res13: Double = 0.7371322405086183
-
-
-// ----- find best linear regression model
-
-import org.apache.spark.ml.regression.LinearRegression
-val lr = new LinearRegression
 lr.setFitIntercept(true).setFeaturesCol("scaledFeatures")
 
 import org.apache.spark.ml.Pipeline
-val pipeline = new Pipeline().setStages(Array(va,stdScaler,lr))
+val pipeline = new Pipeline().setStages(Array(rf,stdScaler,lr))
 
 import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
 
@@ -240,25 +70,26 @@ lrmodel.getStandardization
 res5: Boolean = true
 
 lrmodel.summary.rootMeanSquaredError
-res19: Double = 4.91977716147573
+res25: Double = 4.6036927032226505
 
 lrmodel.summary.r2
-res20: Double = 0.7203967217580702
+res26: Double = 0.7483954793305998
 
 println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
 LR Model coefficients:
--0.8084846371583382
-0.8738451521528758
--1.0960359942251414
-0.4540453960800893
--1.6829112831710984
-2.77661788025407
--0.10061414285916467
--3.3696369272770945
-0.47274828012321285
--1.6559166035178132
-0.7805960681576798
--3.71447461898971
+0.7745049833943773   // ZN
+-0.7004639873397853  // INDUS
+0.399412002029792    // CHAS
+-2.7245464454615     // NOX
+2.7190362000423463   // RM
+-0.38915049559187165 // AGE
+1.9174996085770104   // RAD
+-2.157970584109642   // TAX
+-1.7695157032836102  // PTRATIO
+0.9367057239820256   // B
+-4.059996056719011   // LSTAT
+0.777060686619494    // CRIM_log
+-4.2791101110080865  // DIS_log
 
 // -----  metrics on test data
 
@@ -267,7 +98,39 @@ val pred = bestmodel.transform(testData)
 val bceval = new RegressionEvaluator()
 
 bceval.setMetricName("rmse").evaluate(pred)
-res22: Double = 4.55605120037877
+res28: Double = 4.381952181180771
 
 bceval.setMetricName("r2").evaluate(pred)
-res23: Double = 0.7386214887891369
+res29: Double = 0.756633136500374
+
+
+// ----- building reduced linear regression model
+
+import org.apache.spark.ml.feature.RFormula
+val rf = new RFormula().setFormula("MEDV ~ NOX + RM + RAD + TAX + PTRATIO + LSTAT + DIS_log")
+
+import org.apache.spark.ml.feature.StandardScaler
+val stdScaler = new StandardScaler().
+setWithStd(true).
+setWithMean(true).
+setInputCol("features").
+setOutputCol("scaledFeatures")
+
+import org.apache.spark.ml.regression.LinearRegression
+val lr = new LinearRegression
+lr.setFitIntercept(true).setRegParam(0.1).setMaxIter(10).setFeaturesCol("scaledFeatures")
+
+import org.apache.spark.ml.Pipeline
+val pipeline = new Pipeline().setStages(Array(rf,stdScaler,lr))
+
+val pipelinemodel = pipeline.fit(df1)
+
+val pred = pipelinemodel.transform(df1)
+
+val bceval = new RegressionEvaluator()
+
+bceval.setMetricName("rmse").evaluate(pred)
+res32: Double = 4.679014694183168
+
+bceval.setMetricName("r2").evaluate(pred)
+res33: Double = 0.7350615478560851

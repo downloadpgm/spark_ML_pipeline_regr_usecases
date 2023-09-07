@@ -1,0 +1,247 @@
+
+val df = spark.read.format("csv").option("inferSchema","true").load("staging/used_cars_price_train-data.csv").toDF("Row","Name","Location","Year","Kilometers_Driven","Fuel_Type","Transmission","Owner_Type","Mileage","Engine","Power","Seats","New_Price","Price")
+
+val df1 = df.na.fill(Map("Mileage" -> "18.9 kmpl", "Engine" -> "1197 CC", "Power" -> "74 bhp", "Seats" -> 5.0)).
+          na.replace("Power", Map("null bhp" -> "74 bhp"))
+
+import org.apache.spark.sql.types._
+
+val df2 = df1.withColumn("age", (lit(2021)-'Year).cast(DoubleType)).
+          withColumn("mileage_aux", regexp_extract('Mileage,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+          withColumn("engine_aux", regexp_extract('Engine,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+          withColumn("power_aux", regexp_extract('Power,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+          withColumn("km_1000", 'Kilometers_Driven / 1000).
+          drop("Row","New_Price")
+
+val df3 = df2.where('km_1000 < 651).          // removing outliers
+              withColumn("km_1000_log",log('km_1000)).
+              withColumn("price_log",log('Price))
+
+df3.printSchema
+root
+ |-- Name: string (nullable = true)
+ |-- Location: string (nullable = true)
+ |-- Year: integer (nullable = true)
+ |-- Kilometers_Driven: integer (nullable = true)
+ |-- Fuel_Type: string (nullable = true)
+ |-- Transmission: string (nullable = true)
+ |-- Owner_Type: string (nullable = true)
+ |-- Mileage: string (nullable = false)
+ |-- Engine: string (nullable = false)
+ |-- Power: string (nullable = false)
+ |-- Seats: double (nullable = false)
+ |-- Price: double (nullable = true)
+ |-- age: double (nullable = true)
+ |-- mileage_aux: double (nullable = true)
+ |-- engine_aux: double (nullable = true)
+ |-- power_aux: double (nullable = true)
+ |-- km_1000: double (nullable = true)
+ |-- km_1000_log: double (nullable = true)
+ |-- price_log: double (nullable = true)
+
+df2.describe().show
++-------+--------------------+---------+------------------+------------------+---------+------------+----------+--------+-------+--------+------------------+------------------+-----------------+-----------------+-----------------+------------------+-----------------+-------------------+-------------------+
+|summary|                Name| Location|              Year| Kilometers_Driven|Fuel_Type|Transmission|Owner_Type| Mileage| Engine|   Power|             Seats|             Price|              age|      mileage_aux|       engine_aux|         power_aux|          km_1000|        km_1000_log|          price_log|
++-------+--------------------+---------+------------------+------------------+---------+------------+----------+--------+-------+--------+------------------+------------------+-----------------+-----------------+-----------------+------------------+-----------------+-------------------+-------------------+
+|  count|                6016|     6016|              6016|              6016|     6016|        6016|      6016|    6016|   6016|    6016|              6016|              6016|             6016|             6016|             6016|              6016|             6016|               6016|               6016|
+|   mean|                null|     null|2013.3577127659576| 57438.71525930851|     null|        null|      null|    null|   null|    null| 5.276928191489362| 9.471163563829773|7.642287234042553|18.13498171542558|1618.455784574468| 112.2929388297864|57.43871525930859| 3.8492858846796127| 1.8246814040360877|
+| stddev|                null|     null|3.2702137457795386|35731.611958293055|     null|        null|      null|    null|   null|    null|0.8065234478818107|11.167658382942856| 3.27021374577955|4.582476688592578| 600.317111855185|53.544718153085356|35.73161195829305| 0.7113535229774004| 0.8737478642024259|
+|    min|Ambassador Classi...|Ahmedabad|              1998|               171|      CNG|   Automatic|     First|0.0 kmpl|1047 CC| 100 bhp|               0.0|              0.44|              2.0|              0.0|             72.0|              34.2|            0.171|-1.7660917224794772|-0.8209805520698302|
+|    max|Volvo XC90 2007-2...|     Pune|              2019|            620000|   Petrol|      Manual|     Third|9.9 kmpl| 999 CC|99.6 bhp|              10.0|             160.0|             23.0|            33.54|           5998.0|             560.0|            620.0|  6.429719478039138|  5.075173815233827|
++-------+--------------------+---------+------------------+------------------+---------+------------+----------+--------+-------+--------+------------------+------------------+-----------------+-----------------+-----------------+------------------+-----------------+-------------------+-------------------+
+
+
+// ----- find best linear regression model
+
+val Array(trainingData, testData) = df3.randomSplit(Array(0.7,0.3),11L)
+
+trainingData.cache
+testData.cache
+
+import org.apache.spark.ml.feature.RFormula
+val rf = new RFormula().setHandleInvalid("skip").setFormula("price_log ~ Location + km_1000_log + Fuel_Type + Transmission + Owner_Type + age + mileage_aux + engine_aux + power_aux + Seats")
+
+import org.apache.spark.ml.feature.StandardScaler
+val stdScaler = new StandardScaler().
+setWithStd(true).
+setWithMean(true).
+setInputCol("features").
+setOutputCol("scaledFeatures")
+
+import org.apache.spark.ml.regression.LinearRegression
+val lr = new LinearRegression
+lr.setFitIntercept(true).setFeaturesCol("scaledFeatures")
+
+import org.apache.spark.ml.Pipeline
+val pipeline = new Pipeline().setStages(Array(rf,stdScaler,lr))
+
+import org.apache.spark.ml.tuning.{ParamGridBuilder, CrossValidator}
+
+val paramGrid = new ParamGridBuilder().
+addGrid(lr.regParam, Array(1, 0.1, 0.01, 0.001)).
+addGrid(lr.maxIter, Array(10, 20, 40, 100)).build()
+
+import org.apache.spark.ml.evaluation.RegressionEvaluator
+
+val cv = new CrossValidator().
+setEstimator(pipeline).
+setEvaluator(new RegressionEvaluator).
+setEstimatorParamMaps(paramGrid).
+setNumFolds(3)
+
+val pipelinemodel = cv.fit(trainingData)
+
+import org.apache.spark.ml.PipelineModel
+val bestmodel = pipelinemodel.bestModel.asInstanceOf[PipelineModel]
+
+import org.apache.spark.ml.regression.LinearRegressionModel
+val lrmodel = bestmodel.stages(2).asInstanceOf[LinearRegressionModel]
+
+// -----  metrics extracted from model
+
+lrmodel.getRegParam
+res38: Double = 0.01
+
+lrmodel.getMaxIter
+res39: Int = 10
+
+lrmodel.getFitIntercept
+res4: Boolean = true
+
+lrmodel.getStandardization
+res5: Boolean = true
+
+lrmodel.summary.rootMeanSquaredError
+res20: Double = 0.30468573974057916
+
+lrmodel.summary.r2
+res21: Double = 0.8791002466196844
+
+println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
+LR Model coefficients:
+-0.030142681003160143
+0.024048769185450368
+0.016893147033937565
+-0.018487108004188936
+-0.027494407892989542
+-0.02115754101512455
+-0.07689936359719109
+-0.004093908420273059
+-0.030374847935876297
+0.03379381585005358     // Location
+-0.04896650275650855    // km_1000_log
+0.06668529639280978
+-0.10232888782284841
+-0.00829172772719014
+-0.005491208853412502   // Fuel_Type
+-0.1439085028362212     // Transmission
+-0.007583085959497324
+-0.032160504573568664
+-0.025146373649032088   // Owner_Type
+-0.3788281160714465     // age
+-0.07882602134303       // mileage_aux
+0.10637720316953851     // engine_aux
+0.36476540893400766     // power_aux
+-0.0025339224516639012  // Seats
+
+// -----  metrics on test data
+
+val pred = bestmodel.transform(testData)
+
+val bceval = new RegressionEvaluator()
+
+bceval.setMetricName("rmse").evaluate(pred)
+res23: Double = 0.30027938579765523
+
+bceval.setMetricName("r2").evaluate(pred)
+res24: Double = 0.8800424864030297
+
+
+// build model considering only features : Fuel_Type, Transmission, age, engine_aux, power_aux
+
+import org.apache.spark.ml.feature.RFormula
+val rf = new RFormula().setHandleInvalid("skip").setFormula("price_log ~ Fuel_Type + Transmission + age + engine_aux + power_aux")
+
+import org.apache.spark.ml.feature.StandardScaler
+val stdScaler = new StandardScaler().
+setWithStd(true).
+setWithMean(true).
+setInputCol("features").
+setOutputCol("scaledFeatures")
+
+import org.apache.spark.ml.regression.LinearRegression
+val lr = new LinearRegression
+lr.setFitIntercept(true).setRegParam(0.01).setMaxIter(10).setFeaturesCol("scaledFeatures")
+
+import org.apache.spark.ml.Pipeline
+val pipeline = new Pipeline().setStages(Array(rf,stdScaler,lr))
+
+val pipelinemodel = pipeline.fit(df3)
+
+import org.apache.spark.ml.regression.LinearRegressionModel
+val lrmodel = pipelinemodel.stages(2).asInstanceOf[LinearRegressionModel]
+
+lrmodel.summary.rootMeanSquaredError
+res26: Double = 0.32594395227961437
+
+lrmodel.summary.r2
+res27: Double = 0.86081712720752
+
+println(s"LR Model coefficients:\n${lrmodel.coefficients.toArray.mkString("\n")}")
+LR Model coefficients:
+0.037100769415437086
+-0.08982074303229282
+-0.01813146974922995
+-0.0023711491853445    // Fuel_Type
+-0.16722082282331668   // Transmission
+-0.3986571566918368    // age
+0.17248944019940377    // engine_aux
+0.3541029342227469     // power_aux
+
+
+// load test data and perform transformations and predictions
+
+val dft = spark.read.format("csv").option("inferSchema","true").load("staging/used_cars_price_test-data.csv").toDF("Row","Name","Location","Year","Kilometers_Driven","Fuel_Type","Transmission","Owner_Type","Mileage","Engine","Power","Seats","New_Price")
+
+val dft1 = dft.na.fill(Map("Mileage" -> "18.9 kmpl", "Engine" -> "1197 CC", "Power" -> "74 bhp", "Seats" -> 5.0)).
+          na.replace("Power", Map("null bhp" -> "74 bhp"))
+
+import org.apache.spark.sql.types._
+
+val dft2 = dft1.withColumn("age", (lit(2021)-'Year).cast(DoubleType)).
+          withColumn("mileage_aux", regexp_extract('Mileage,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+          withColumn("engine_aux", regexp_extract('Engine,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+          withColumn("power_aux", regexp_extract('Power,"([0-9]+.?[0-9]*)",1).cast(DoubleType)).
+          withColumn("km_1000", 'Kilometers_Driven / 1000).
+          drop("Row","New_Price")
+
+val dft3 = dft2.where('km_1000 < 651).
+              withColumn("km_1000_log",log('km_1000))
+			  
+pipelinemodel.transform(dft3).select('Fuel_Type,'Transmission, 'age, 'engine_aux, 'power_aux, round(exp('prediction),2)).show
++---------+------------+----+----------+---------+-------------------------+
+|Fuel_Type|Transmission| age|engine_aux|power_aux|round(EXP(prediction), 2)|
++---------+------------+----+----------+---------+-------------------------+
+|      CNG|      Manual| 7.0|     998.0|     58.2|                     3.06|
+|   Petrol|      Manual| 8.0|     796.0|     47.3|                      2.4|
+|   Diesel|      Manual| 4.0|    2393.0|    147.8|                    15.48|
+|   Diesel|      Manual| 9.0|    1364.0|     74.0|                     3.84|
+|   Petrol|      Manual| 7.0|    1197.0|    82.85|                     3.84|
+|   Diesel|      Manual| 5.0|    2179.0|    140.0|                    12.24|
+|   Diesel|   Automatic| 6.0|    2982.0|    168.7|                    23.88|
+|   Petrol|      Manual| 8.0|     814.0|     55.2|                     2.54|
+|   Petrol|      Manual|10.0|    1497.0|    118.0|                     3.66|
+|   Diesel|      Manual| 6.0|    2179.0|    140.0|                    10.83|
+|   Diesel|   Automatic| 9.0|    1968.0|    167.6|                    12.29|
+|   Petrol|      Manual| 5.0|    1197.0|     82.0|                     4.87|
+|   Petrol|      Manual|14.0|    1794.0|    125.0|                     2.57|
+|   Diesel|      Manual|13.0|    1248.0|     75.0|                      2.3|
+|   Petrol|      Manual| 7.0|    1598.0|    102.5|                     4.91|
+|   Diesel|   Automatic| 8.0|    1995.0|    184.0|                    15.59|
+|   Diesel|   Automatic| 6.0|    1995.0|    184.0|                     19.9|
+|   Diesel|      Manual|12.0|    1399.0|     68.0|                     2.59|
+|   Petrol|   Automatic| 2.0|    1197.0|     81.8|                    10.16|
+|   Petrol|      Manual| 6.0|    1298.0|     85.8|                     4.55|
++---------+------------+----+----------+---------+-------------------------+
+only showing top 20 rows
+
