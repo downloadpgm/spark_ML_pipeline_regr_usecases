@@ -1,0 +1,259 @@
+---- Steps in spark-shell to generate a shell script to query a webservice to get location from latitude/longitude 
+
+val rdd = sc.textFile("housing/cal_housing.data").map(x => x.split(","))
+
+val rdd1 = rdd.map(x => (x(1),x(0))).distinct
+
+rdd1.map( x => "curl \"http://www.geoplugin.net/extras/location.gp?lat="+x._1+"&lon="+x._2+"\"; echo "; "+x._1+"; "+x._2).saveAsTextFile("/tmp/latlong")
+
+---- Step to run in Unix shell
+
+> cp /tmp/latlong/part-00000 latlong.sh
+> chmod u+x latlong.sh
+nohup latlong.sh >latlong1.txt 2>/dev/null &
+
+---- Steps to join cal_housing.data with latlong1.txt (contains California suburb of latitude/longitude) 
+
+val rdd = sc.textFile("latlong1.txt").map(x => x.split(";"))
+
+rdd.map( x => (x(19).trim()+":"+x(20).trim())).first
+
+rdd.map( x => (x(19).trim()+":"+x(20).trim(),x(1),x(5))).first
+
+val rdd2 = rdd.map( x => (x(19).trim()+":"+x(20).trim(),x(1),x(5)))
+
+rdd2.map(x => x._1).distinct.count
+
+rdd2.map(x => x._1).count
+
+rdd.map(x => x.length).distinct.count
+
+rdd.map(x => x.length).distinct.take(10)
+
+rdd.filter(x => x.length == 4).take(10)
+
+rdd.filter(x => x.length == 4).count
+
+val rdd2 = rdd.map( x => {
+  if (x.length == 4) (x(2).trim()+":"+x(3).trim(),Array("",""))
+  else (x(19).trim()+":"+x(20).trim(),Array(x(1),x(5)))
+})
+
+rdd2.map( x => x._1 ).distinct.count
+
+val hrdd = sc.textFile("housing/cal_housing.data").map(x => x.split(","))
+
+val hrdd1 = hrdd.map( x => (x(1)+":"+x(0),x))
+
+val frdd = hrdd1.join(rdd2)
+
+val frdd1 = frdd.map( x => Array(x._2._2(0),x._2._2(1),x._2._1(0),x._2._1(1),x._2._1(2),x._2._1(3),x._2._1(4),x._2._1(5),x._2._1(6),x._2._1(7),x._2._1(8)))
+
+frdd1.map(x => x(0)+","+x(1)+","+x(2)+","+x(3)+","+x(4)+","+x(5)+","+x(6)+","+x(7)+","+x(8)+","+x(9)+","+x(10)).saveAsTextFile("/tmp/housing_city")
+
+---- Copy file save to inteligigle name
+
+cp /tmp/housing_city/part-00000 ~/housing-city.txt
+
+---- Analysis and transformation of housing dataset using location instead of Latitude/Longitude 
+
+val rdd = sc.textFile("housing-city.txt").map( x => x.split(","))
+
+val rdd1 = rdd.map( x => x.slice(2,11)).map( x => x.map( y => y.toDouble))
+
+rdd1.take(5)
+res1: Array[Array[Double]] = Array(Array(-118.36, 33.8, 38.0, 2553.0, 400.0, 1042.0, 393.0, 6.9742, 500001.0), Array(-118.36, 33.8, 34.0, 2629.0, 369.0, 966.0, 375.0, 10.1241, 500001.0), Array(-121.32, 36.79, 30.0, 516.0, 90.0, 288.0, 95.0, 3.6333, 202500.0), Array(-118.08, 33.93, 39.0, 859.0, 164.0, 673.0, 172.0, 3.7143, 158200.0), Array(-118.08, 33.93, 39.0, 1478.0, 324.0, 1127.0, 320.0, 3.525, 158000.0))
+
+---- Conversion to 1-to-k binary encoding vectors 
+
+def oneHotEncColumns(rddx: org.apache.spark.rdd.RDD[Array[String]], idx: Int):org.apache.spark.rdd.RDD[Array[Double]] = {
+  val categories = rddx.map(r => r(idx)).distinct.zipWithIndex.collect.toMap
+  val numCategories = categories.size
+  val vetcateg = rddx.map(r => {
+      val categoryIdx = categories(r(idx)).toInt
+      val categoryFeatures = Array.ofDim[Double](numCategories)
+      categoryFeatures(categoryIdx) = 1.0
+      categoryFeatures
+  })
+  vetcateg
+}
+
+def mergeArray(rddx: org.apache.spark.rdd.RDD[Array[String]], idx: Int*):org.apache.spark.rdd.RDD[Array[Double]] = {
+  var i = 0
+  var arr1 = oneHotEncColumns(rddx,idx(i))
+  for (j <- 1 until idx.size) {
+    var arr2 = oneHotEncColumns(rddx,idx(j))
+    var flt1 = arr1.zip(arr2).map(x => (x._1.toList ++ x._2.toList).toArray)
+    arr1 = flt1
+  }
+  arr1
+}
+
+val concat = mergeArray(rdd,0)
+
+val vect = concat.zip(rdd1).map(x => (x._1.toList ++ x._2.toList).toArray)
+
+vect.first
+res2: Array[Double] = Array(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,...
+
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.regression.LabeledPoint
+
+val data = vect.map(r => {
+  val arr_size = r.size - 1
+  val l = r(arr_size)/10000
+  val f = r.slice(0,arr_size)
+  LabeledPoint(l,Vectors.dense(f))
+})
+
+data.take(5)
+res3: Array[org.apache.spark.mllib.regression.LabeledPoint] = Array((50.0001,[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0...
+
+val sets = data.randomSplit(Array(0.8,0.2))
+val trainSet = sets(0)
+val testSet = sets(1)
+
+trainSet.cache
+
+---- MLlib Linear regression --------------
+
+import org.apache.spark.mllib.regression.LinearRegressionWithSGD
+val alg = new LinearRegressionWithSGD()
+alg.setIntercept(true)
+alg.optimizer.setNumIterations(200)
+
+---- step size = 1.0
+alg.optimizer.setStepSize(1.0)
+val model = alg.run(trainSet)
+model: intercept = NaN, numFeatures = 819
+
+---- step size = 0.1
+alg.optimizer.setStepSize(0.1)
+val model = alg.run(trainSet)
+model: intercept = NaN, numFeatures = 819
+
+---- step size = 0.01
+alg.optimizer.setStepSize(0.01)
+val model = alg.run(trainSet)
+model: intercept = NaN, numFeatures = 819
+
+---- step size = 0.001
+alg.optimizer.setStepSize(0.001)
+val model = alg.run(trainSet)
+model: intercept = NaN, numFeatures = 819
+
+---- step size = 0.0001
+alg.optimizer.setStepSize(0.0001)
+val model = alg.run(trainSet)
+model: intercept = NaN, numFeatures = 819
+
+---- step size = 0.00001
+alg.optimizer.setStepSize(0.00001)
+val model = alg.run(trainSet)
+model: intercept = -2.067918453273963E240, numFeatures = 819
+
+val validPredicts = testSet.map(x => (model.predict(x.features),x.label))
+
+validPredicts.take(10)
+res20: Array[(Double, Double)] = Array((-2.983625697460093E247,17.28), (-4.517514136302685E247,26.67), (-5.5244101300078043E247,28.66), (-2.1268496741960973E247,18.4), (-2.5539265688182485E247,22.01), (-3.2896102977585556E247,23.57), (-2.703409045612244E247,8.82), (-2.7922219912802063E247,7.62), (-9.518879986455287E247,9.79), (-4.144191108336856E247,18.19))
+
+---- step size = 0.000001
+alg.optimizer.setStepSize(0.000001)
+val model = alg.run(trainSet)
+model: intercept = 1.0016148517271306, numFeatures = 819
+
+val validPredicts = testSet.map(x => (model.predict(x.features),x.label))
+
+validPredicts.take(10)
+res22: Array[(Double, Double)] = Array((19569.697668385612,17.28), (694974.6203658519,26.67), (309806.76352168416,28.66), (-81774.26633028047,18.4), (155106.104470247,22.01), (-155653.41123321338,23.57), (-71579.22552173394,8.82), (-153582.29594903614,7.62), (510975.7156034586,9.79), (-131868.3137723981,18.19))
+
+---- step size = 0.0000001
+alg.optimizer.setStepSize(0.0000001)
+val model = alg.run(trainSet)
+model: intercept = 1.0000024148713829, numFeatures = 819
+
+val validPredicts = testSet.map(x => (model.predict(x.features),x.label))
+
+validPredicts.take(10)
+res24: Array[(Double, Double)] = Array((12.436154357067657,17.28), (18.412890512994732,26.67), (22.193221996600165,28.66), (9.192123720342742,18.4), (10.83497850699824,22.01), (13.658192217812495,23.57), (11.404221668337001,8.82), (11.731817585654642,7.62), (37.739963806977244,9.79), (16.94221368338814,18.19))
+
+import org.apache.spark.mllib.evaluation.RegressionMetrics
+val validMetrics = new RegressionMetrics(validPredicts)
+validMetrics.rootMeanSquaredError  // 16.133357075746478
+validMetrics.meanSquaredError  // 260.28521053353893
+
+---- step size = 0.00000001
+alg.optimizer.setStepSize(0.00000001)
+val model = alg.run(trainSet)
+model: intercept = 1.0000003216746134, numFeatures = 819
+
+val validPredicts = testSet.map(x => (model.predict(x.features),x.label))
+
+validPredicts.take(10)
+res28: Array[(Double, Double)] = Array((3.8917408713458608,17.28), (5.385781271085666,26.67), (6.355688791213388,28.66), (3.064377966429644,18.4), (3.4787493346193266,22.01), (4.1920491169900815,23.57), (3.6233555924578376,8.82), (3.7084627982486182,7.62), (10.245141896526846,9.79), (5.020965575881127,18.19))
+
+import org.apache.spark.mllib.evaluation.RegressionMetrics
+val validMetrics = new RegressionMetrics(validPredicts)
+validMetrics.rootMeanSquaredError  // 20.29826126211758
+validMetrics.meanSquaredError  // 412.0194102651832
+
+
+---- Decide to scale features because variabiliaty increases even reducing step size of model 
+
+import org.apache.spark.mllib.feature.StandardScaler
+val scaler = new StandardScaler(true, true).fit(trainSet.map(x => x.features))
+ 
+val trainScaled = trainSet.map(x => LabeledPoint(x.label,scaler.transform(x.features)))
+val validScaled = testSet.map(x => LabeledPoint(x.label, scaler.transform(x.features)))
+
+---- MLlib Linear regression --------------
+
+import org.apache.spark.mllib.regression.LinearRegressionWithSGD
+val alg = new LinearRegressionWithSGD()
+alg.setIntercept(true)
+alg.optimizer.setNumIterations(200)
+
+---- step size = 1.0
+alg.optimizer.setStepSize(1.0)
+val model = alg.run(trainScaled)
+model: intercept = 20.661655308686882, numFeatures = 819
+
+val validPredicts = validScaled.map(x => (model.predict(x.features),x.label))
+
+validPredicts.take(10)
+res35: Array[(Double, Double)] = Array((18.29248943870616,17.28), (22.521816215853317,26.67), (23.334497655473022,28.66), (19.299992062864938,18.4), (18.8709427412212,22.01), (25.01428725611845,23.57), (11.449058594475419,8.82), (8.668503741169989,7.62), (13.102486204785816,9.79), (20.3680066181738,18.19))
+
+import org.apache.spark.mllib.evaluation.RegressionMetrics
+val validMetrics = new RegressionMetrics(validPredicts)
+validMetrics.rootMeanSquaredError  // 5.390945860032415
+validMetrics.meanSquaredError  // 29.062297265800634
+
+---- step size = 0.1
+alg.optimizer.setStepSize(0.1)
+val model = alg.run(trainScaled)
+model: intercept = 18.467829684656476, numFeatures = 819
+
+val validPredicts = validScaled.map(x => (model.predict(x.features),x.label))
+
+validPredicts.take(10)
+res39: Array[(Double, Double)] = Array((16.537299097689896,17.28), (18.668591064370826,26.67), (20.05088605705007,28.66), (17.542882503945354,18.4), (16.277089824110764,22.01), (22.83842529190811,23.57), (9.623343532369661,8.82), (6.42692944126922,7.62), (10.486882171226624,9.79), (18.063344651244346,18.19))
+
+import org.apache.spark.mllib.evaluation.RegressionMetrics
+val validMetrics = new RegressionMetrics(validPredicts)
+validMetrics.rootMeanSquaredError  // 5.878335437779543
+validMetrics.meanSquaredError  // 34.55482751905482
+
+---- step size = 0.01
+alg.optimizer.setStepSize(0.01)
+val model = alg.run(trainScaled)
+model: intercept = 5.635640716038911, numFeatures = 819
+
+val validPredicts = validScaled.map(x => (model.predict(x.features),x.label))
+
+validPredicts.take(10)
+res43: Array[(Double, Double)] = Array((5.266324700910975,17.28), (5.511377314491428,26.67), (6.313802990440106,28.66), (5.223561272274428,18.4), (4.919574198519201,22.01), (7.3963868473201195,23.57), (2.4198994825410463,8.82), (1.3445738770979547,7.62), (3.239066572959876,9.79), (5.502312673694902,18.19))
+
+import org.apache.spark.mllib.evaluation.RegressionMetrics
+val validMetrics = new RegressionMetrics(validPredicts)
+validMetrics.rootMeanSquaredError  // 17.45251313902365
+validMetrics.meanSquaredError  // 304.5902148677931
